@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return isSignedIn() && myRole() == 'admin';
+    }
+
+    // School details & subject list — everyone signed in can read,
+    // only the Principal (admin) can change them.
+    match /meta/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // User profiles (role, name, assigned class).
+    // A user can read their own profile; only admin can read/write everyone's.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Class marks sheets.
+    // Admin can read/write every class.
+    // A class teacher can read/write ONLY the class assigned to them.
+    match /classes/{classId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.teacherUid == request.auth.uid);
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && resource.data.teacherUid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+  }
+}
+
+// NOTE — known simplification:
+// The "locked after submit" behaviour for a class teacher is enforced by the
+// app's interface (inputs are disabled once `submitted` is true), not by
+// these rules. A teacher's Firestore access to their own class document is
+// not technically blocked after submission, so a teacher directly editing
+// the browser's developer console could still write to it. For a school
+// deployment this is a low-risk, low-likelihood scenario, but if you want
+// this enforced at the database level too, this is the rule to tighten —
+// mention it and we can add it.

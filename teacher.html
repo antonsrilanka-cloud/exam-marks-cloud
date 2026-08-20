@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Class Teacher — Term Examination Marks Report System</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<div class="appbar no-print">
+  <div class="brand-logo" id="appLogo">SC</div>
+  <div class="brand-text">
+    <span class="sch" id="appSchoolName">Your School Name</span>
+    <span class="sub" id="appClassName">Class Teacher</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="role-badge">Class Teacher</span>
+  <span class="who" id="whoAmI"></span>
+  <button class="ghost" id="btnLogout">Sign Out</button>
+</div>
+
+<div class="tabs no-print">
+  <button data-tab="entry" class="active">1 · Marks Entry</button>
+  <button data-tab="class">2 · Class Marksheet</button>
+  <button data-tab="individual">3 · Individual Reports</button>
+</div>
+
+<div class="wrap">
+
+  <div id="statusBannerHolder"></div>
+
+  <!-- ============ MARKS ENTRY ============ -->
+  <div class="panel active" id="panel-entry">
+    <div class="card">
+      <h2>Student Marks Entry — <span id="entryClassName"></span></h2>
+      <p class="hint">Type marks directly into the grid. Press <b>Enter</b> at the end of a row to jump to the next student automatically. Totals, average, class-highest and rank are calculated for you.</p>
+      <div class="table-scroll">
+        <table class="entry" id="entryTable">
+          <thead><tr id="entryHeadRow"></tr></thead>
+          <tbody id="entryBody"></tbody>
+        </table>
+      </div>
+      <div class="toolbar">
+        <button class="btn gold" id="btnAddStudent">+ Add Student</button>
+        <button class="btn outline" id="btnAddStudent10">+ Add 10 Rows</button>
+        <span class="spacer"></span>
+        <span class="meta-note" id="studentCountNote"></span>
+        <span class="meta-note" id="saveStatusNote"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Ready to finish?</h2>
+      <p class="hint">Once you submit, the Principal can view, print, and download this class's marksheet and report cards. You can keep editing right up until you submit.</p>
+      <button class="btn gold" id="btnSubmit">✓ Submit Completed Marks Sheet</button>
+    </div>
+  </div>
+
+  <!-- ============ CLASS MARKSHEET ============ -->
+  <div class="panel" id="panel-class">
+    <div class="preview-toolbar no-print">
+      <b>Class Marksheet</b>
+      <span class="meta-note">Full class overview — A4 landscape.</span>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintClass">🖨 Print</button>
+      <button class="btn gold" id="btnPdfClass">⬇ Download PDF</button>
+    </div>
+    <div id="classSheetHolder"></div>
+  </div>
+
+  <!-- ============ INDIVIDUAL REPORTS ============ -->
+  <div class="panel" id="panel-individual">
+    <div class="preview-toolbar no-print">
+      <b>Individual Report</b>
+      <select id="studentSelect"></select>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintOne">🖨 Print</button>
+      <button class="btn gold" id="btnPdfOne">⬇ Download PDF</button>
+      <button class="btn outline" id="btnPdfAll">⬇ Download All (PDF)</button>
+    </div>
+    <div class="note-editor no-print" id="noteEditorWrap" style="display:none;">
+      <label for="teacherNoteInput">Class Teacher's Special Note (for the selected student)</label>
+      <textarea id="teacherNoteInput" placeholder="e.g. Shows steady improvement this term."></textarea>
+    </div>
+    <div id="individualSheetHolder"></div>
+  </div>
+
+</div>
+
+<script type="module">
+import { auth, db } from "./firebase-init.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { esc, uid, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
+
+let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
+let subjects = [];
+let classId = null;
+let classData = {className:"", students:[], submitted:false};
+let saveTimer = null;
+
+/* ===== AUTH GUARD ===== */
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ window.location.href = 'index.html'; return; }
+  const snap = await getDoc(doc(db,'users',user.uid));
+  if(!snap.exists() || snap.data().role!=='teacher' || !snap.data().classId){
+    alert("This account doesn't have a class assigned yet. Please contact the Principal.");
+    await signOut(auth);
+    window.location.href = 'index.html';
+    return;
+  }
+  classId = snap.data().classId;
+  document.getElementById('whoAmI').textContent = snap.data().name || user.email;
+  initData();
+});
+document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth).then(()=>window.location.href='index.html'));
+
+function initData(){
+  onSnapshot(doc(db,'meta','school'), (snap)=>{
+    if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
+  });
+  onSnapshot(doc(db,'meta','subjects'), (snap)=>{
+    subjects = snap.exists() ? (snap.data().list||[]) : [];
+    renderEntryTable();
+    renderAllViews();
+  });
+  onSnapshot(doc(db,'classes',classId), (snap)=>{
+    if(snap.exists()){
+      classData = snap.data();
+      document.getElementById('appClassName').textContent = classData.className || "Class Teacher";
+      document.getElementById('entryClassName').textContent = classData.className || "";
+      renderStatusBanner();
+      renderEntryTable();
+      renderAllViews();
+    }
+  });
+}
+
+function renderTopBar(){
+  document.getElementById('appSchoolName').textContent = school.name || "Your School Name";
+  const logoEl = document.getElementById('appLogo');
+  if(school.logo){ logoEl.innerHTML = `<img src="${school.logo}">`; }
+  else {
+    const initials = (school.name||"S C").split(" ").filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    logoEl.textContent = initials || "SC";
+  }
+}
+
+function renderStatusBanner(){
+  const holder = document.getElementById('statusBannerHolder');
+  if(classData.submitted){
+    holder.innerHTML = `<div class="status-banner locked no-print">✓ This class's marks have been <b>submitted</b> to the Principal and are now locked. Contact the Principal if changes are needed.</div>`;
+  } else {
+    holder.innerHTML = "";
+  }
+  document.getElementById('btnAddStudent').disabled = classData.submitted;
+  document.getElementById('btnAddStudent10').disabled = classData.submitted;
+  document.getElementById('btnSubmit').disabled = classData.submitted;
+  document.getElementById('btnSubmit').textContent = classData.submitted ? "✓ Already Submitted" : "✓ Submit Completed Marks Sheet";
+}
+
+/* ===== TABS ===== */
+document.querySelectorAll('.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='class' || btn.dataset.tab==='individual') renderAllViews();
+  });
+});
+
+/* ===== SAVE (debounced) ===== */
+function scheduleSave(){
+  document.getElementById('saveStatusNote').textContent = "Saving…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    await updateDoc(doc(db,'classes',classId), {students: classData.students});
+    document.getElementById('saveStatusNote').textContent = "Saved ✓";
+    setTimeout(()=>{ if(document.getElementById('saveStatusNote').textContent==="Saved ✓") document.getElementById('saveStatusNote').textContent=""; }, 1500);
+  }, 600);
+}
+
+/* ===== MARKS ENTRY GRID ===== */
+function renderEntryTable(){
+  const head = document.getElementById('entryHeadRow');
+  const body = document.getElementById('entryBody');
+  let headHtml = `<th style="width:36px;">#</th><th style="width:170px;">Student Name</th><th style="width:100px;">Adm. No.</th>`;
+  subjects.forEach(s=>{ headHtml += `<th>${esc(s.name)}<br><small style="opacity:.75;font-weight:400;">/ ${s.max}</small></th>`; });
+  headHtml += `<th style="width:34px;"></th>`;
+  head.innerHTML = headHtml;
+
+  const students = classData.students || [];
+  const locked = !!classData.submitted;
+
+  if(students.length===0){
+    body.innerHTML = `<tr><td colspan="${3+subjects.length+1}" style="padding:26px;text-align:center;color:#5b6270;">No students yet — click "Add Student" to begin.</td></tr>`;
+  } else {
+    body.innerHTML = students.map((st,idx)=>{
+      let row = `<tr><td style="text-align:center;">${idx+1}</td>`;
+      row += `<td class="name-cell"><input type="text" ${locked?'disabled':''} data-id="${st.id}" data-field="name" value="${esc(st.name)}" placeholder="Student name"></td>`;
+      row += `<td><input type="text" ${locked?'disabled':''} data-id="${st.id}" data-field="adm" value="${esc(st.adm||"")}" placeholder="Adm no." style="text-align:center;"></td>`;
+      subjects.forEach(s=>{
+        const v = (st.marks && st.marks[s.name]!==undefined) ? st.marks[s.name] : "";
+        row += `<td><input type="number" ${locked?'disabled':''} min="0" max="${s.max}" data-id="${st.id}" data-subject="${esc(s.name)}" value="${v}" placeholder="-"></td>`;
+      });
+      row += `<td class="rm">${locked?'':`<button data-id="${st.id}" class="rmStudent" title="Remove student">×</button>`}</td></tr>`;
+      return row;
+    }).join("");
+  }
+
+  document.getElementById('studentCountNote').textContent = `${students.length} / 50 students`;
+
+  if(!locked){
+    body.querySelectorAll('input[data-field]').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const st = classData.students.find(s=>s.id===inp.dataset.id);
+        st[inp.dataset.field] = inp.value;
+        scheduleSave();
+      });
+    });
+    body.querySelectorAll('input[data-subject]').forEach(inp=>{
+      inp.addEventListener('input',()=>{
+        const st = classData.students.find(s=>s.id===inp.dataset.id);
+        if(!st.marks) st.marks = {};
+        st.marks[inp.dataset.subject] = inp.value===""?"":Number(inp.value);
+        scheduleSave();
+      });
+    });
+    body.querySelectorAll('.rmStudent').forEach(b=>{
+      b.addEventListener('click',()=>{
+        const st = classData.students.find(s=>s.id===b.dataset.id);
+        if(!confirm(`Remove student "${st.name||'(unnamed)'}"?`)) return;
+        classData.students = classData.students.filter(s=>s.id!==b.dataset.id);
+        renderEntryTable();
+        scheduleSave();
+      });
+    });
+    attachQuickEntryNav(body);
+  }
+}
+
+function attachQuickEntryNav(body){
+  body.addEventListener('keydown',(e)=>{
+    if(e.key!=='Enter') return;
+    e.preventDefault();
+    const inputs = Array.from(body.querySelectorAll('input:not([disabled])'));
+    const idx = inputs.indexOf(e.target);
+    if(idx===-1) return;
+    if(idx < inputs.length-1){
+      inputs[idx+1].focus();
+      inputs[idx+1].select && inputs[idx+1].select();
+    } else {
+      addStudent(true);
+    }
+  });
+}
+
+function addStudent(focusNew){
+  if(classData.submitted) return;
+  if((classData.students||[]).length>=50){ alert("This sheet supports a maximum of 50 students."); return; }
+  const marks = {};
+  subjects.forEach(s=> marks[s.name]="");
+  const st = {id:uid(), name:"", adm:"", marks, note:""};
+  if(!classData.students) classData.students = [];
+  classData.students.push(st);
+  renderEntryTable();
+  scheduleSave();
+  if(focusNew){
+    requestAnimationFrame(()=>{
+      const inp = document.querySelector(`input[data-id="${st.id}"][data-field="name"]`);
+      if(inp) inp.focus();
+    });
+  }
+}
+document.getElementById('btnAddStudent').addEventListener('click',()=>addStudent(true));
+document.getElementById('btnAddStudent10').addEventListener('click',()=>{
+  for(let i=0;i<10 && (classData.students||[]).length<50;i++) addStudent(false);
+});
+
+/* ===== SUBMIT ===== */
+document.getElementById('btnSubmit').addEventListener('click', async ()=>{
+  if((classData.students||[]).length===0){ alert("Please add at least one student before submitting."); return; }
+  if(!confirm("Submit this class's marks to the Principal? You won't be able to edit after submitting unless the Principal reopens it.")) return;
+  await updateDoc(doc(db,'classes',classId), {students: classData.students, submitted:true, submittedAt: serverTimestamp()});
+});
+
+/* ===== CLASS MARKSHEET + INDIVIDUAL REPORTS (view) ===== */
+function renderAllViews(){
+  const students = classData.students || [];
+  document.getElementById('classSheetHolder').innerHTML = students.length
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, classData.className)}</div>`
+    : `<div class="card empty-state"><div class="big">📋</div>Add students and marks first.</div>`;
+
+  const noteWrap = document.getElementById('noteEditorWrap');
+  if(students.length===0){
+    document.getElementById('individualSheetHolder').innerHTML = `<div class="card empty-state"><div class="big">🧑‍🎓</div>Add students and marks first.</div>`;
+    noteWrap.style.display='none';
+    return;
+  }
+  noteWrap.style.display='block';
+
+  const {highest, rows} = computeStats(subjects, students);
+  const sel = document.getElementById('studentSelect');
+  const prevVal = sel.value;
+  sel.innerHTML = rows.map(r=>`<option value="${r.id}">${esc(r.name)||"(unnamed)"}</option>`).join("");
+  if(prevVal && rows.some(r=>r.id===prevVal)) sel.value = prevVal;
+
+  window._rows = rows; window._highest = highest;
+
+  function showOne(id){
+    const row = rows.find(r=>r.id===id) || rows[0];
+    if(!row) return;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, highest, classData.className)}</div>`;
+    document.getElementById('teacherNoteInput').value = row.note || "";
+    document.getElementById('teacherNoteInput').disabled = !!classData.submitted;
+  }
+  showOne(sel.value);
+  sel.onchange = (e)=> showOne(e.target.value);
+
+  document.getElementById('teacherNoteInput').oninput = (e)=>{
+    const st = classData.students.find(s=>s.id===sel.value);
+    if(!st) return;
+    st.note = e.target.value;
+    scheduleSave();
+    const row = window._rows.find(r=>r.id===sel.value);
+    if(row) row.note = e.target.value;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, window._highest, classData.className)}</div>`;
+  };
+}
+
+/* ===== PRINT / PDF ===== */
+document.getElementById('btnPrintClass').addEventListener('click',()=>{
+  setPageSize('landscape');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-class').classList.add('print-active');
+  window.print();
+});
+document.getElementById('btnPrintOne').addEventListener('click',()=>{
+  setPageSize('portrait');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-individual').classList.add('print-active');
+  window.print();
+});
+document.getElementById('btnPdfClass').addEventListener('click',()=>{
+  const el = document.getElementById('classSheetPrintArea');
+  if(!el) return alert("Add students first.");
+  downloadPdf(el, `Class-Marksheet-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
+});
+document.getElementById('btnPdfOne').addEventListener('click',()=>{
+  const el = document.getElementById('individualPrintArea');
+  if(!el) return alert("Select a student first.");
+  const sel = document.getElementById('studentSelect');
+  const name = sel.options[sel.selectedIndex]?.text || 'student';
+  downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}.pdf`, 'portrait');
+});
+document.getElementById('btnPdfAll').addEventListener('click',()=>{
+  const rows = window._rows, highest = window._highest;
+  if(!rows || rows.length===0) return;
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, classData.className)).join('<div style="page-break-after:always;"></div>');
+  document.body.appendChild(wrapper);
+  const opt = { margin:0, filename:`All-Reports-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`,
+    image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}, pagebreak:{mode:['css']} };
+  window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
+});
+</script>
+</body>
+</html>

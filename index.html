@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — Term Examination Marks Report System</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card">
+    <div class="lg" id="loginLogo">SC</div>
+    <h1 id="loginSchoolName">Term Examination Marks Report System</h1>
+    <p class="sub">Sign in to continue</p>
+
+    <div class="login-msg" id="loginMsg"></div>
+
+    <form id="loginForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" required placeholder="you@school.edu">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn gold block" id="btnLogin">Sign In</button>
+    </form>
+
+    <div class="login-links">
+      <a id="forgotLink">Forgot password?</a>
+      <span class="meta-note" id="loadingNote"></span>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { auth, db } from "./firebase-init.js";
+import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const msg = document.getElementById('loginMsg');
+function showMsg(text, type){
+  msg.textContent = text;
+  msg.className = 'login-msg ' + type;
+}
+
+// If already logged in, route straight to the right dashboard.
+onAuthStateChanged(auth, async (user)=>{
+  if(user){
+    document.getElementById('loadingNote').textContent = "Checking your account…";
+    try{
+      const snap = await getDoc(doc(db,'users',user.uid));
+      if(snap.exists() && snap.data().role==='admin'){
+        window.location.href = 'admin.html';
+      } else if(snap.exists() && snap.data().role==='teacher'){
+        window.location.href = 'teacher.html';
+      } else {
+        showMsg("Your account isn't set up yet. Please contact the Principal.", 'error');
+      }
+    }catch(e){
+      document.getElementById('loadingNote').textContent = "";
+    }
+  }
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; btn.textContent = "Signing in…";
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged above handles the redirect
+  }catch(err){
+    let text = "Could not sign in. Please check your email and password.";
+    if(err.code==='auth/invalid-credential' || err.code==='auth/wrong-password') text = "Incorrect email or password.";
+    if(err.code==='auth/user-not-found') text = "No account found with that email.";
+    if(err.code==='auth/too-many-requests') text = "Too many attempts. Please wait a moment and try again.";
+    showMsg(text, 'error');
+    btn.disabled = false; btn.textContent = "Sign In";
+  }
+});
+
+document.getElementById('forgotLink').addEventListener('click', async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email){ showMsg("Enter your email above first, then click 'Forgot password?'", 'error'); return; }
+  try{
+    await sendPasswordResetEmail(auth, email);
+    showMsg("A password reset link has been sent to " + email + ".", 'ok');
+  }catch(err){
+    showMsg("Could not send reset email. Please check the address and try again.", 'error');
+  }
+});
+</script>
+</body>
+</html>
