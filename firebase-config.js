@@ -1,17 +1,12 @@
 // ============================================================
-// FIREBASE CONFIGURATION — fill this in with YOUR school's own
-// Firebase project keys (see SETUP-GUIDE.md, Step 2).
-//
-// These values are safe to be public / visible in the browser —
-// they only identify which project to connect to. Real security
-// is enforced by Firestore Rules (firestore.rules) and Firebase
-// Authentication, not by hiding these values.
+// FIREBASE CONFIGURATION — your school's own project keys
 // ============================================================
 export const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID"
+  apiKey: "AIzaSyBnGdWkNR7iTXqVAMh24BPi4ixpOjcA__I",
+  authDomain: "stmarys-term-marks.firebaseapp.com",
+  projectId: "stmarys-term-marks",
+  storageBucket: "stmarys-term-marks.firebasestorage.app",
+  messagingSenderId: "721026852487",
+  appId: "1:721026852487:web:7d7ff8bfbc73b1041efa22"
+};
 };
