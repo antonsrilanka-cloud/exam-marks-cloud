@@ -8,5 +8,5 @@ export const firebaseConfig = {
   storageBucket: "stmarys-term-marks.firebasestorage.app",
   messagingSenderId: "721026852487",
   appId: "1:721026852487:web:7d7ff8bfbc73b1041efa22"
-};
+};  appId: "1:721026852487:web:7d7ff8bfbc73b1041efa22"
 };
