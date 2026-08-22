@@ -34,16 +34,6 @@
   <!-- ============ MARKS ENTRY ============ -->
   <div class="panel active" id="panel-entry">
     <div class="card">
-      <h2>Subjects — <span id="subjectsClassName"></span></h2>
-      <p class="hint">Set up the subjects for your class only. Add every subject for this term below.</p>
-      <div id="subjectTags"></div>
-      <div class="toolbar" style="margin-top:6px;">
-        <input type="text" id="newSubjectName" placeholder="Subject name" style="max-width:240px;">
-        <input type="number" id="newSubjectMax" placeholder="Max marks" value="100" style="max-width:110px;">
-        <button class="btn outline" id="btnAddSubject">+ Add Subject</button>
-      </div>
-    </div>
-    <div class="card">
       <h2>Student Marks Entry — <span id="entryClassName"></span></h2>
       <p class="hint">Type marks directly into the grid. Press <b>Enter</b> at the end of a row to jump to the next student automatically. Totals, average, class-highest and rank are calculated for you.</p>
       <div class="table-scroll">
@@ -130,15 +120,17 @@ function initData(){
   onSnapshot(doc(db,'meta','school'), (snap)=>{
     if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
   });
+  onSnapshot(doc(db,'meta','subjects'), (snap)=>{
+    subjects = snap.exists() ? (snap.data().list||[]) : [];
+    renderEntryTable();
+    renderAllViews();
+  });
   onSnapshot(doc(db,'classes',classId), (snap)=>{
     if(snap.exists()){
       classData = snap.data();
-      subjects = classData.subjects || [];
       document.getElementById('appClassName').textContent = classData.className || "Class Teacher";
       document.getElementById('entryClassName').textContent = classData.className || "";
-      document.getElementById('subjectsClassName').textContent = classData.className || "";
       renderStatusBanner();
-      renderSubjectTags();
       renderEntryTable();
       renderAllViews();
     }
@@ -166,41 +158,7 @@ function renderStatusBanner(){
   document.getElementById('btnAddStudent10').disabled = classData.submitted;
   document.getElementById('btnSubmit').disabled = classData.submitted;
   document.getElementById('btnSubmit').textContent = classData.submitted ? "✓ Already Submitted" : "✓ Submit Completed Marks Sheet";
-  document.getElementById('btnAddSubject').disabled = classData.submitted;
 }
-
-/* ===== SUBJECTS (per class) ===== */
-function renderSubjectTags(){
-  const wrap = document.getElementById('subjectTags');
-  const locked = !!classData.submitted;
-  if(subjects.length===0){ wrap.innerHTML = `<span class="meta-note">No subjects added yet — add your class's subjects below.</span>`; return; }
-  wrap.innerHTML = subjects.map((s,i)=>`<span class="subject-tag">${esc(s.name)} <small>/ ${s.max}</small>${locked?'':`<button data-i="${i}" class="rmSubject">×</button>`}</span>`).join("");
-  wrap.querySelectorAll('.rmSubject').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const i = Number(b.dataset.i);
-      const name = subjects[i].name;
-      if(!confirm(`Remove subject "${name}"? Any marks entered for it will be deleted.`)) return;
-      subjects.splice(i,1);
-      classData.subjects = subjects;
-      (classData.students||[]).forEach(st=>{ if(st.marks) delete st.marks[name]; });
-      await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
-    });
-  });
-}
-document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
-  if(classData.submitted) return;
-  const nameEl = document.getElementById('newSubjectName');
-  const maxEl = document.getElementById('newSubjectMax');
-  const name = nameEl.value.trim();
-  const max = Number(maxEl.value)||100;
-  if(!name) return alert("Please enter a subject name.");
-  if(subjects.some(s=>s.name.toLowerCase()===name.toLowerCase())) return alert("This subject already exists.");
-  subjects.push({name, max});
-  classData.subjects = subjects;
-  (classData.students||[]).forEach(st=>{ if(!st.marks) st.marks={}; if(!(name in st.marks)) st.marks[name]=""; });
-  await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
-  nameEl.value=""; maxEl.value=100;
-});
 
 /* ===== TABS ===== */
 document.querySelectorAll('.tabs button').forEach(btn=>{

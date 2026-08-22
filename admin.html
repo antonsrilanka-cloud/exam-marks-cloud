@@ -140,7 +140,7 @@
 import { app, auth, db } from "./firebase-init.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
@@ -330,11 +330,7 @@ function renderClassList(){
       <td>${esc(c.teacherEmail)}</td>
       <td>${pill}</td>
       <td>${count}</td>
-      <td style="white-space:nowrap;">
-        <button class="btn small outline" data-id="${c.id}" data-action="view">View</button>
-        <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
-        <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
-      </td>
+      <td><button class="btn small outline" data-id="${c.id}" data-action="view">View</button></td>
     </tr>`;
   }).join("");
   body.querySelectorAll('[data-action="view"]').forEach(b=>{
@@ -345,34 +341,6 @@ function renderClassList(){
       document.getElementById('panel-view').classList.add('active');
       document.getElementById('viewClassSelect').value = b.dataset.id;
       renderClassView(b.dataset.id);
-    });
-  });
-  body.querySelectorAll('[data-action="edit"]').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const cls = classes.find(c=>c.id===b.dataset.id);
-      if(!cls) return;
-      const newClassName = prompt("Class name:", cls.className || "");
-      if(newClassName===null) return;
-      const newTeacherName = prompt("Teacher's name:", cls.teacherName || "");
-      if(newTeacherName===null) return;
-      await updateDoc(doc(db,'classes',cls.id), {className:newClassName.trim(), teacherName:newTeacherName.trim()});
-      if(cls.teacherUid){
-        await updateDoc(doc(db,'users',cls.teacherUid), {name:newTeacherName.trim()});
-      }
-      alert("Updated. Note: the teacher's sign-in email can't be changed here — to change an email, delete this teacher below and create a new account with the correct email.");
-    });
-  });
-  body.querySelectorAll('[data-action="delete"]').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const cls = classes.find(c=>c.id===b.dataset.id);
-      if(!cls) return;
-      if(!confirm(`Remove "${cls.className}" (${cls.teacherName})? This deletes all marks entered for this class and revokes that teacher's access. This cannot be undone.`)) return;
-      if(!confirm("Please confirm once more — this is permanent. Continue?")) return;
-      await deleteDoc(doc(db,'classes',cls.id));
-      if(cls.teacherUid){
-        await deleteDoc(doc(db,'users',cls.teacherUid));
-      }
-      alert("Removed. Their old sign-in link will now show \"account not set up\" if they try to log in. (Their login credential itself still exists in Firebase Authentication → Users, but it can no longer access anything — you can delete it there too if you'd like to fully remove it.)");
     });
   });
 }
