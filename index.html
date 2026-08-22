@@ -3,96 +3,949 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign In — Term Examination Marks Report System</title>
-<link rel="stylesheet" href="shared.css">
+<title>Term Examination Marks Report System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --navy:#1e3a5f;
+  --navy-dark:#142842;
+  --gold:#c9a227;
+  --gold-light:#e8d488;
+  --paper:#f7f6f2;
+  --ink:#232426;
+  --ink-soft:#5b6270;
+  --line:#d9dce1;
+  --green:#2f7d5c;
+  --red:#b3432d;
+  --white:#ffffff;
+  --radius:8px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Source Sans 3',Arial,sans-serif;}
+h1,h2,h3,.display{font-family:'Lora',serif;}
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;}
+
+/* ===== Top App Bar ===== */
+.appbar{
+  background:var(--navy);
+  color:var(--white);
+  padding:14px 24px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  box-shadow:0 2px 8px rgba(20,40,66,.25);
+  position:sticky;top:0;z-index:50;
+}
+.appbar .brand-logo{
+  width:40px;height:40px;border-radius:50%;background:var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--navy-dark);font-weight:700;font-family:'Lora',serif;font-size:15px;
+  overflow:hidden;flex-shrink:0;border:2px solid var(--gold-light);
+}
+.appbar .brand-logo img{width:100%;height:100%;object-fit:cover;}
+.appbar .brand-text{display:flex;flex-direction:column;line-height:1.15;}
+.appbar .brand-text .sch{font-family:'Lora',serif;font-weight:600;font-size:16px;}
+.appbar .brand-text .sub{font-size:12px;color:#c9d3e0;letter-spacing:.03em;}
+.appbar .spacer{flex:1;}
+.appbar .backup-btns{display:flex;gap:8px;}
+.appbar button.ghost{
+  background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;
+  padding:7px 12px;border-radius:6px;font-size:12.5px;font-weight:600;
+}
+.appbar button.ghost:hover{background:rgba(255,255,255,.12);}
+
+/* ===== Tabs ===== */
+.tabs{
+  display:flex;gap:2px;background:var(--navy-dark);padding:0 20px;
+  overflow-x:auto;
+}
+.tabs button{
+  background:transparent;border:none;color:#b9c5d6;padding:13px 18px;
+  font-size:13.5px;font-weight:600;letter-spacing:.02em;border-bottom:3px solid transparent;
+  white-space:nowrap;
+}
+.tabs button.active{color:#fff;border-bottom-color:var(--gold);}
+.tabs button:hover{color:#fff;}
+
+.wrap{max-width:1280px;margin:0 auto;padding:26px 24px 60px;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.card{
+  background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px 24px;margin-bottom:20px;
+}
+.card h2{margin:0 0 4px;font-size:19px;color:var(--navy-dark);}
+.card .hint{color:var(--ink-soft);font-size:13px;margin:0 0 18px;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+@media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
+input[type=text],input[type=number]{
+  width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:14.5px;color:var(--ink);background:#fff;
+}
+input:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold);}
+.field{margin-bottom:14px;}
+textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:14.5px;font-family:inherit;resize:vertical;min-height:52px;}
+
+.logo-drop{
+  border:2px dashed var(--line);border-radius:8px;padding:18px;text-align:center;cursor:pointer;
+  color:var(--ink-soft);font-size:13px;position:relative;background:#fbfbfa;
+}
+.logo-drop img{max-height:70px;max-width:100%;margin-bottom:6px;}
+.logo-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+
+.btn{
+  background:var(--navy);color:#fff;border:none;padding:10px 18px;border-radius:6px;
+  font-size:13.5px;font-weight:600;letter-spacing:.02em;
+}
+.btn:hover{background:var(--navy-dark);}
+.btn.gold{background:var(--gold);color:var(--navy-dark);}
+.btn.gold:hover{background:#b8931f;}
+.btn.outline{background:transparent;color:var(--navy);border:1.5px solid var(--navy);}
+.btn.outline:hover{background:#eef2f6;}
+.btn.danger{background:transparent;color:var(--red);border:1.5px solid var(--red);padding:7px 12px;font-size:12.5px;}
+.btn.danger:hover{background:#fbeae6;}
+.btn.small{padding:6px 11px;font-size:12px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+
+.subject-tag{
+  display:inline-flex;align-items:center;gap:8px;background:#eef2f6;border:1px solid var(--line);
+  border-radius:20px;padding:6px 8px 6px 14px;font-size:13px;font-weight:600;color:var(--navy-dark);margin:0 8px 8px 0;
+}
+.subject-tag small{color:var(--ink-soft);font-weight:500;}
+.subject-tag button{background:var(--red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:12px;line-height:1;}
+
+/* ===== Marks entry table ===== */
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+table.entry{border-collapse:collapse;width:100%;min-width:640px;}
+table.entry th,table.entry td{border:1px solid var(--line);padding:0;}
+table.entry th{background:var(--navy);color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.03em;padding:10px 8px;position:sticky;top:0;}
+table.entry td input{border:none;padding:9px 8px;width:100%;font-size:14px;border-radius:0;text-align:center;}
+table.entry td input:focus{outline:2px solid var(--gold);outline-offset:-2px;}
+table.entry td.name-cell input{text-align:left;}
+table.entry tbody tr:nth-child(even){background:#fafafa;}
+table.entry td.rm{text-align:center;padding:6px;}
+table.entry td.rm button{background:none;border:none;color:var(--red);font-size:16px;font-weight:700;}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+
+/* ===== Print preview toolbars (screen only) ===== */
+.preview-toolbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;
+  background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+}
+.preview-toolbar select{padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;}
+.preview-toolbar .spacer{flex:1;}
+.meta-note{font-size:12px;color:var(--ink-soft);}
+
+/* ===== A4 LANDSCAPE CLASS MARKSHEET ===== */
+.sheet-landscape{
+  width:297mm;min-height:190mm;background:#fff;margin:0 auto 30px;
+  border:1px solid var(--line);box-shadow:0 4px 18px rgba(20,40,66,.08);
+  padding:10mm 12mm;
+}
+.sheet-header{display:flex;align-items:center;gap:16px;border-bottom:3px solid var(--navy);padding-bottom:8px;margin-bottom:10px;}
+.sheet-header .logo-box{width:56px;height:56px;border-radius:50%;border:2px solid var(--gold);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#f1f1ee;}
+.sheet-header .logo-box img{width:100%;height:100%;object-fit:cover;}
+.sheet-header .htext{flex:1;text-align:center;}
+.sheet-header .htext .sname{font-family:'Lora',serif;font-weight:700;font-size:20px;color:var(--navy-dark);letter-spacing:.01em;}
+.sheet-header .htext .saddr{font-size:11.5px;color:var(--ink-soft);margin-top:1px;}
+.sheet-header .htext .sexam{font-size:13px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-top:4px;}
+.sheet-header .rlogo{width:56px;flex-shrink:0;}
+
+table.landscape-tbl{width:100%;border-collapse:collapse;font-size:9.6px;}
+table.landscape-tbl th,table.landscape-tbl td{border:1px solid #9aa7b8;padding:3px 4px;text-align:center;}
+table.landscape-tbl thead th{background:var(--navy);color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.02em;}
+table.landscape-tbl td.sn{width:22px;}
+table.landscape-tbl td.name{text-align:left;font-weight:600;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;}
+table.landscape-tbl tbody tr:nth-child(even){background:#f5f6f4;}
+table.landscape-tbl tfoot td{background:#eef2f6;font-weight:700;color:var(--navy-dark);}
+table.landscape-tbl td.rank1{color:var(--gold);font-weight:800;}
+table.landscape-tbl td.total-col,table.landscape-tbl td.avg-col{font-weight:700;background:#f2f7f3;}
+table.landscape-tbl td.rank-col{font-weight:800;color:var(--navy-dark);background:#fbf6e6;}
+
+.sheet-footer{display:flex;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--ink-soft);}
+.sig-line{display:flex;gap:60px;margin-top:22px;font-size:11px;}
+.sig-line div{border-top:1px solid #888;padding-top:4px;width:160px;text-align:center;color:var(--ink-soft);}
+
+/* ===== A4 PORTRAIT INDIVIDUAL REPORT ===== */
+.sheet-portrait{
+  width:210mm;min-height:297mm;background:#fff;margin:0 auto 30px;
+  border:1px solid var(--line);box-shadow:0 4px 18px rgba(20,40,66,.08);
+  padding:16mm 18mm;position:relative;
+}
+.sheet-portrait .p-header{display:flex;align-items:center;gap:18px;border-bottom:3px solid var(--navy);padding-bottom:14px;margin-bottom:18px;}
+.sheet-portrait .p-header .logo-box{width:74px;height:74px;border-radius:50%;border:3px solid var(--gold);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#f1f1ee;}
+.sheet-portrait .p-header .logo-box img{width:100%;height:100%;object-fit:cover;}
+.sheet-portrait .p-header .htext{flex:1;text-align:center;}
+.sheet-portrait .p-header .htext .sname{font-family:'Lora',serif;font-weight:700;font-size:24px;color:var(--navy-dark);}
+.sheet-portrait .p-header .htext .saddr{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+.sheet-portrait .p-header .htext .sexam{font-size:14px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.07em;margin-top:6px;}
+.sheet-portrait .p-header .rlogo{width:74px;flex-shrink:0;}
+
+.student-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 30px;margin-bottom:18px;font-size:14px;}
+.student-meta div{display:flex;justify-content:space-between;border-bottom:1px dotted var(--line);padding:4px 0;}
+.student-meta span.k{color:var(--ink-soft);font-weight:600;}
+.student-meta span.v{font-weight:700;color:var(--navy-dark);}
+
+table.report-tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:16px;}
+table.report-tbl th,table.report-tbl td{border:1px solid var(--line);padding:8px 10px;text-align:center;}
+table.report-tbl thead th{background:var(--navy);color:#fff;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
+table.report-tbl td.sname{text-align:left;font-weight:600;}
+table.report-tbl tbody tr:nth-child(even){background:#fafafa;}
+table.report-tbl tfoot td{background:#eef2f6;font-weight:700;color:var(--navy-dark);font-size:14px;}
+
+.summary-row{display:flex;gap:14px;margin:18px 0;}
+.summary-box{flex:1;border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center;background:#fbfbfa;}
+.summary-box .lbl{font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+.summary-box .val{font-family:'Lora',serif;font-size:26px;font-weight:700;color:var(--navy-dark);margin-top:3px;}
+.summary-box.rank .val{color:var(--gold);}
+
+.remarks-box{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:6px;font-size:13px;color:var(--ink);min-height:60px;background:#fbfbfa;}
+.remarks-box b{color:var(--navy-dark);}
+table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-dark);}
+
+.note-editor{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:18px;}
+.note-editor label{margin-bottom:6px;}
+.note-editor textarea{width:100%;min-height:70px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-family:inherit;resize:vertical;}
+
+.sig-row{display:flex;justify-content:space-between;margin-top:44px;font-size:12px;}
+.sig-row div{border-top:1px solid #888;padding-top:5px;width:150px;text-align:center;color:var(--ink-soft);}
+.p-footer{position:absolute;bottom:10mm;left:18mm;right:18mm;font-size:10px;color:#9aa1ab;text-align:center;border-top:1px solid var(--line);padding-top:6px;}
+
+/* ===== Print rules ===== */
+@media print{
+  .appbar,.tabs,.preview-toolbar,.no-print{display:none !important;}
+  body{background:#fff;}
+  .wrap{padding:0;max-width:none;}
+  .card{border:none;box-shadow:none;padding:0;margin:0;}
+  .sheet-landscape,.sheet-portrait{box-shadow:none;border:none;margin:0 auto;}
+  .panel{display:none !important;}
+  .panel.print-active{display:block !important;}
+}
+#page-size-style{}
+
+.empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}
+.empty-state .big{font-size:38px;margin-bottom:8px;}
+
+footer.app-footer{text-align:center;color:var(--ink-soft);font-size:12px;padding:20px 0 40px;}
+</style>
 </head>
 <body>
-<div class="login-shell">
-  <div class="login-card">
-    <div class="lg" id="loginLogo">SC</div>
-    <h1 id="loginSchoolName">Term Examination Marks Report System</h1>
-    <p class="sub">Sign in to continue</p>
 
-    <div class="login-msg" id="loginMsg"></div>
-
-    <form id="loginForm">
-      <div class="field">
-        <label>Email</label>
-        <input type="email" id="loginEmail" required placeholder="you@school.edu">
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="loginPassword" required placeholder="••••••••">
-      </div>
-      <button type="submit" class="btn gold block" id="btnLogin">Sign In</button>
-    </form>
-
-    <div class="login-links">
-      <a id="forgotLink">Forgot password?</a>
-      <span class="meta-note" id="loadingNote"></span>
-    </div>
+<div class="appbar no-print">
+  <div class="brand-logo" id="appLogo">SC</div>
+  <div class="brand-text">
+    <span class="sch" id="appSchoolName">Your School Name</span>
+    <span class="sub" id="appExamLine">Term Examination — Marks Report System</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="backup-btns">
+    <button class="ghost" id="btnExport">⬇ Backup (JSON)</button>
+    <button class="ghost" id="btnImportTrigger">⬆ Restore</button>
+    <input type="file" id="btnImport" accept=".json" style="display:none">
   </div>
 </div>
 
-<script type="module">
-import { auth, db } from "./firebase-init.js";
-import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<div class="tabs no-print">
+  <button data-tab="setup" class="active">1 · School Setup</button>
+  <button data-tab="entry">2 · Marks Entry</button>
+  <button data-tab="class">3 · Class Marksheet (A4 Landscape)</button>
+  <button data-tab="individual">4 · Individual Reports (A4 Portrait)</button>
+</div>
 
-const msg = document.getElementById('loginMsg');
-function showMsg(text, type){
-  msg.textContent = text;
-  msg.className = 'login-msg ' + type;
+<div class="wrap">
+
+  <!-- ============ PANEL 1: SETUP ============ -->
+  <div class="panel active" id="panel-setup">
+    <div class="card">
+      <h2>School & Examination Details</h2>
+      <p class="hint">These details appear as the header on every marksheet and report card. Set them once — all sheets update automatically.</p>
+      <div class="grid2">
+        <div>
+          <div class="field">
+            <label>School Name</label>
+            <input type="text" id="s_name" placeholder="e.g. St. Mary's Tamil Maha Vidyalaya">
+          </div>
+          <div class="field">
+            <label>School Address</label>
+            <textarea id="s_addr" placeholder="e.g. Bambalapitiya, Colombo"></textarea>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label>Class / Grade</label>
+              <input type="text" id="s_class" placeholder="e.g. Grade 10 - A">
+            </div>
+            <div class="field">
+              <label>Academic Year</label>
+              <input type="text" id="s_year" placeholder="e.g. 2026">
+            </div>
+          </div>
+          <div class="field">
+            <label>Examination Title</label>
+            <input type="text" id="s_exam" placeholder="e.g. Second Term Examination">
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label>School Logo / Crest</label>
+            <div class="logo-drop" id="logoDrop">
+              <div id="logoPreviewWrap">
+                <div style="font-size:26px;">🖼</div>
+                <div>Click to upload logo (PNG/JPG)</div>
+              </div>
+              <input type="file" id="logoInput" accept="image/*">
+            </div>
+          </div>
+          <div class="field">
+            <label>Principal / Signatory Name</label>
+            <input type="text" id="s_principal" placeholder="e.g. Mr. R. Antonraj">
+          </div>
+          <div class="field">
+            <label>Class Teacher Name (optional)</label>
+            <input type="text" id="s_teacher" placeholder="e.g. Mrs. K. Selvi">
+          </div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="btnSaveSetup">Save School Setup</button>
+        <span class="meta-note" id="setupSavedNote"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Subjects</h2>
+      <p class="hint">Add every subject for this term. Subjects appear as marks columns on all sheets, in the order you add them.</p>
+      <div id="subjectTags"></div>
+      <div class="toolbar" style="margin-top:6px;">
+        <input type="text" id="newSubjectName" placeholder="Subject name (e.g. Mathematics)" style="max-width:260px;">
+        <input type="number" id="newSubjectMax" placeholder="Max marks" value="100" style="max-width:120px;">
+        <button class="btn outline" id="btnAddSubject">+ Add Subject</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PANEL 2: MARKS ENTRY ============ -->
+  <div class="panel" id="panel-entry">
+    <div class="card">
+      <h2>Student Marks Entry</h2>
+      <p class="hint">Add up to 50 students. Type each subject mark directly into the grid — totals, averages, class-highest and rank are calculated automatically.</p>
+      <div class="table-scroll">
+        <table class="entry" id="entryTable">
+          <thead><tr id="entryHeadRow"></tr></thead>
+          <tbody id="entryBody"></tbody>
+        </table>
+      </div>
+      <div class="toolbar">
+        <button class="btn gold" id="btnAddStudent">+ Add Student</button>
+        <button class="btn outline" id="btnAddStudent10">+ Add 10 Rows</button>
+        <span class="spacer"></span>
+        <span class="meta-note" id="studentCountNote"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PANEL 3: CLASS MARKSHEET ============ -->
+  <div class="panel" id="panel-class">
+    <div class="preview-toolbar no-print">
+      <b>Class Marksheet</b>
+      <span class="meta-note">Full class overview on a single A4 landscape page.</span>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintClass">🖨 Print</button>
+      <button class="btn gold" id="btnPdfClass">⬇ Download PDF</button>
+    </div>
+    <div id="classSheetHolder"></div>
+  </div>
+
+  <!-- ============ PANEL 4: INDIVIDUAL REPORTS ============ -->
+  <div class="panel" id="panel-individual">
+    <div class="preview-toolbar no-print">
+      <b>Individual Report</b>
+      <select id="studentSelect"></select>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintOne">🖨 Print Selected</button>
+      <button class="btn gold" id="btnPdfOne">⬇ Download PDF (Selected)</button>
+      <button class="btn outline" id="btnPdfAll">⬇ Download PDF (All Students)</button>
+    </div>
+    <div class="note-editor no-print" id="noteEditorWrap" style="display:none;">
+      <label for="teacherNoteInput">Class Teacher's Special Note (for the selected student — appears at the bottom of their report)</label>
+      <textarea id="teacherNoteInput" placeholder="e.g. Shows steady improvement this term; needs more practice in Mathematics."></textarea>
+    </div>
+    <div id="individualSheetHolder"></div>
+  </div>
+
+</div>
+
+<footer class="app-footer no-print">Term Examination Marks Report System — data is stored locally in this browser. Use Backup / Restore to move data between devices.</footer>
+
+<script>
+/* ============================================================
+   DATA MODEL  (persisted to localStorage)
+   ============================================================ */
+const STORAGE_KEY = "termMarksApp_v1";
+
+let db = {
+  school:{
+    name:"", addr:"", cls:"", year:"", exam:"", principal:"", teacher:"", logo:""
+  },
+  subjects:[], // [{name, max}]
+  students:[]  // [{id, name, adm, marks:{subjectName:number|null}}]
+};
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) db = JSON.parse(raw);
+  }catch(e){ console.warn("Could not load saved data", e); }
+}
+function saveDB(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
 
-// If already logged in, route straight to the right dashboard.
-onAuthStateChanged(auth, async (user)=>{
-  if(user){
-    document.getElementById('loadingNote').textContent = "Checking your account…";
-    try{
-      const snap = await getDoc(doc(db,'users',user.uid));
-      if(snap.exists() && snap.data().role==='admin'){
-        window.location.href = 'admin.html';
-      } else if(snap.exists() && snap.data().role==='teacher'){
-        window.location.href = 'teacher.html';
-      } else {
-        showMsg("Your account isn't set up yet. Please contact the Principal.", 'error');
+/* ============================================================
+   UTIL
+   ============================================================ */
+function uid(){ return 'id'+Math.random().toString(36).slice(2,10); }
+function esc(str){ return (str||"").toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function computeStats(){
+  const subs = db.subjects;
+  // class highest per subject
+  const highest = {};
+  subs.forEach(s=>{
+    let max = null;
+    db.students.forEach(st=>{
+      const v = st.marks[s.name];
+      if(v!==null && v!==undefined && v!=="" && !isNaN(v)){
+        if(max===null || Number(v)>max) max = Number(v);
       }
-    }catch(e){
-      document.getElementById('loadingNote').textContent = "";
+    });
+    highest[s.name] = max;
+  });
+  // totals/avg per student
+  const rows = db.students.map(st=>{
+    let total=0, count=0;
+    subs.forEach(s=>{
+      const v = st.marks[s.name];
+      if(v!==null && v!==undefined && v!==""){ total += Number(v); count++; }
+    });
+    const avg = count>0 ? (total/subs.length) : 0;
+    return {...st, total, avg, count};
+  });
+  // rank (standard competition ranking, ties share rank)
+  const sorted = [...rows].sort((a,b)=>b.total-a.total);
+  let rank=0, prevTotal=null, seen=0;
+  sorted.forEach(r=>{
+    seen++;
+    if(r.total!==prevTotal){ rank = seen; prevTotal = r.total; }
+    r.rank = rank;
+  });
+  const rankMap = {};
+  sorted.forEach(r=>rankMap[r.id]=r.rank);
+  rows.forEach(r=>r.rank = rankMap[r.id]);
+  return {highest, rows};
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll('.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='class') renderClassSheet();
+    if(btn.dataset.tab==='individual') renderIndividualPanel();
+    if(btn.dataset.tab==='entry') renderEntryTable();
+  });
+});
+
+/* ============================================================
+   SETUP PANEL
+   ============================================================ */
+function fillSetupForm(){
+  document.getElementById('s_name').value = db.school.name;
+  document.getElementById('s_addr').value = db.school.addr;
+  document.getElementById('s_class').value = db.school.cls;
+  document.getElementById('s_year').value = db.school.year;
+  document.getElementById('s_exam').value = db.school.exam;
+  document.getElementById('s_principal').value = db.school.principal;
+  document.getElementById('s_teacher').value = db.school.teacher;
+  if(db.school.logo){
+    document.getElementById('logoPreviewWrap').innerHTML = `<img src="${db.school.logo}">`;
+  }
+  renderTopBar();
+  renderSubjectTags();
+}
+
+document.getElementById('btnSaveSetup').addEventListener('click',()=>{
+  db.school.name = document.getElementById('s_name').value.trim();
+  db.school.addr = document.getElementById('s_addr').value.trim();
+  db.school.cls = document.getElementById('s_class').value.trim();
+  db.school.year = document.getElementById('s_year').value.trim();
+  db.school.exam = document.getElementById('s_exam').value.trim();
+  db.school.principal = document.getElementById('s_principal').value.trim();
+  db.school.teacher = document.getElementById('s_teacher').value.trim();
+  saveDB();
+  renderTopBar();
+  const note = document.getElementById('setupSavedNote');
+  note.textContent = "Saved ✓";
+  setTimeout(()=>note.textContent="",1800);
+});
+
+document.getElementById('logoInput').addEventListener('change',(e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    db.school.logo = reader.result;
+    document.getElementById('logoPreviewWrap').innerHTML = `<img src="${reader.result}">`;
+    saveDB();
+    renderTopBar();
+  };
+  reader.readAsDataURL(file);
+});
+
+function renderTopBar(){
+  document.getElementById('appSchoolName').textContent = db.school.name || "Your School Name";
+  document.getElementById('appExamLine').textContent = (db.school.exam || "Term Examination") + " — Marks Report System";
+  const logoEl = document.getElementById('appLogo');
+  if(db.school.logo){
+    logoEl.innerHTML = `<img src="${db.school.logo}">`;
+  } else {
+    const initials = (db.school.name||"S C").split(" ").filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    logoEl.textContent = initials || "SC";
+  }
+}
+
+/* ---- Subjects ---- */
+function renderSubjectTags(){
+  const wrap = document.getElementById('subjectTags');
+  if(db.subjects.length===0){
+    wrap.innerHTML = `<span class="meta-note">No subjects added yet.</span>`;
+    return;
+  }
+  wrap.innerHTML = db.subjects.map((s,i)=>`
+    <span class="subject-tag">${esc(s.name)} <small>/ ${s.max}</small>
+      <button data-i="${i}" class="rmSubject" title="Remove subject">×</button>
+    </span>`).join("");
+  wrap.querySelectorAll('.rmSubject').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const i = Number(b.dataset.i);
+      const name = db.subjects[i].name;
+      if(!confirm(`Remove subject "${name}"? Marks entered for it will be deleted.`)) return;
+      db.subjects.splice(i,1);
+      db.students.forEach(st=>{ delete st.marks[name]; });
+      saveDB();
+      renderSubjectTags();
+    });
+  });
+}
+
+document.getElementById('btnAddSubject').addEventListener('click',()=>{
+  const nameEl = document.getElementById('newSubjectName');
+  const maxEl = document.getElementById('newSubjectMax');
+  const name = nameEl.value.trim();
+  const max = Number(maxEl.value)||100;
+  if(!name) return alert("Please enter a subject name.");
+  if(db.subjects.some(s=>s.name.toLowerCase()===name.toLowerCase())) return alert("This subject already exists.");
+  db.subjects.push({name, max});
+  db.students.forEach(st=>{ if(!(name in st.marks)) st.marks[name]=""; });
+  saveDB();
+  nameEl.value=""; maxEl.value=100;
+  renderSubjectTags();
+});
+
+/* ============================================================
+   MARKS ENTRY PANEL
+   ============================================================ */
+function renderEntryTable(){
+  const head = document.getElementById('entryHeadRow');
+  const body = document.getElementById('entryBody');
+  let headHtml = `<th style="width:36px;">#</th><th style="width:170px;">Student Name</th><th style="width:100px;">Adm. No.</th>`;
+  db.subjects.forEach(s=>{ headHtml += `<th>${esc(s.name)}<br><small style="opacity:.75;font-weight:400;">/ ${s.max}</small></th>`; });
+  headHtml += `<th style="width:34px;"></th>`;
+  head.innerHTML = headHtml;
+
+  if(db.students.length===0){
+    body.innerHTML = `<tr><td colspan="${3+db.subjects.length+1}" style="padding:26px;text-align:center;color:#5b6270;">No students yet — click "Add Student" to begin.</td></tr>`;
+  } else {
+    body.innerHTML = db.students.map((st,idx)=>{
+      let row = `<tr><td style="text-align:center;">${idx+1}</td>`;
+      row += `<td class="name-cell"><input type="text" data-id="${st.id}" data-field="name" value="${esc(st.name)}" placeholder="Student name"></td>`;
+      row += `<td><input type="text" data-id="${st.id}" data-field="adm" value="${esc(st.adm||"")}" placeholder="Adm no." style="text-align:center;"></td>`;
+      db.subjects.forEach(s=>{
+        const v = st.marks[s.name] ?? "";
+        row += `<td><input type="number" min="0" max="${s.max}" data-id="${st.id}" data-subject="${esc(s.name)}" value="${v}" placeholder="-"></td>`;
+      });
+      row += `<td class="rm"><button data-id="${st.id}" class="rmStudent" title="Remove student">×</button></td></tr>`;
+      return row;
+    }).join("");
+  }
+
+  document.getElementById('studentCountNote').textContent = `${db.students.length} / 50 students`;
+
+  body.querySelectorAll('input[data-field]').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const st = db.students.find(s=>s.id===inp.dataset.id);
+      st[inp.dataset.field] = inp.value;
+      saveDB();
+    });
+  });
+  body.querySelectorAll('input[data-subject]').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const st = db.students.find(s=>s.id===inp.dataset.id);
+      st.marks[inp.dataset.subject] = inp.value===""?"":Number(inp.value);
+      saveDB();
+    });
+  });
+  body.querySelectorAll('.rmStudent').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const st = db.students.find(s=>s.id===b.dataset.id);
+      if(!confirm(`Remove student "${st.name||'(unnamed)'}"?`)) return;
+      db.students = db.students.filter(s=>s.id!==b.dataset.id);
+      saveDB();
+      renderEntryTable();
+    });
+  });
+
+  attachQuickEntryNav(body);
+}
+
+function addStudent(focusNew){
+  if(db.students.length>=50){ alert("This sheet is designed for a maximum of 50 students per class."); return null; }
+  const marks = {};
+  db.subjects.forEach(s=> marks[s.name]="");
+  const st = {id:uid(), name:"", adm:"", marks, note:""};
+  db.students.push(st);
+  saveDB();
+  renderEntryTable();
+  if(focusNew){
+    // focus the name field of the newly added row
+    requestAnimationFrame(()=>{
+      const inp = document.querySelector(`input[data-id="${st.id}"][data-field="name"]`);
+      if(inp) inp.focus();
+    });
+  }
+  return st;
+}
+document.getElementById('btnAddStudent').addEventListener('click',()=>addStudent(true));
+document.getElementById('btnAddStudent10').addEventListener('click',()=>{
+  for(let i=0;i<10 && db.students.length<50;i++) addStudent(false);
+});
+
+/* ---- Quick keyboard entry: Enter moves to the next field, and adds
+   a new student row automatically once you reach the end of the grid,
+   so you can keep typing the next student's name and marks without
+   clicking "Add Student" each time. ---- */
+function attachQuickEntryNav(body){
+  const allInputs = ()=> Array.from(body.querySelectorAll('input'));
+  body.addEventListener('keydown',(e)=>{
+    if(e.key!=='Enter') return;
+    e.preventDefault();
+    const inputs = allInputs();
+    const idx = inputs.indexOf(e.target);
+    if(idx===-1) return;
+    if(idx < inputs.length-1){
+      inputs[idx+1].focus();
+      inputs[idx+1].select && inputs[idx+1].select();
+    } else {
+      // last field of the last row — add the next student and jump to their name field
+      addStudent(true);
     }
+  });
+}
+
+/* ============================================================
+   CLASS MARKSHEET (A4 LANDSCAPE)
+   ============================================================ */
+function sheetHeaderHtml(){
+  const sc = db.school;
+  const logo = sc.logo ? `<img src="${sc.logo}">` : `🏫`;
+  return `
+    <div class="sheet-header">
+      <div class="logo-box">${logo}</div>
+      <div class="htext">
+        <div class="sname">${esc(sc.name)||"Your School Name"}</div>
+        <div class="saddr">${esc(sc.addr)||""}</div>
+        <div class="sexam">${esc(sc.exam)||"Term Examination"} ${sc.year?("· "+esc(sc.year)):""} ${sc.cls?("· "+esc(sc.cls)):""}</div>
+      </div>
+      <div class="logo-box rlogo" style="visibility:hidden;">${logo}</div>
+    </div>`;
+}
+
+function renderClassSheet(){
+  const {highest, rows} = computeStats();
+  const subs = db.subjects;
+  const holder = document.getElementById('classSheetHolder');
+
+  if(db.students.length===0 || subs.length===0){
+    holder.innerHTML = `<div class="card empty-state"><div class="big">📋</div>Add subjects and students first to generate the class marksheet.</div>`;
+    return;
   }
+
+  let thead = `<tr><th class="sn">#</th><th style="text-align:left;">Student Name</th><th>Adm.No</th>`;
+  subs.forEach(s=> thead += `<th>${esc(s.name)}</th>`);
+  thead += `<th>Total</th><th>Average</th><th>Rank</th></tr>`;
+
+  let tbody = rows.map((r,idx)=>{
+    let row = `<tr><td class="sn">${idx+1}</td><td class="name">${esc(r.name)||"—"}</td><td>${esc(r.adm)||"—"}</td>`;
+    subs.forEach(s=>{
+      const v = r.marks[s.name];
+      row += `<td>${v===""||v===undefined||v===null?"-":v}</td>`;
+    });
+    row += `<td class="total-col">${r.total}</td><td class="avg-col">${r.avg.toFixed(1)}</td><td class="rank-col ${r.rank===1?'rank1':''}">${r.rank}</td></tr>`;
+    return row;
+  }).join("");
+
+  let tfoot = `<tr><td colspan="3" style="text-align:right;">Highest in Class →</td>`;
+  subs.forEach(s=> tfoot += `<td>${highest[s.name]===null?"-":highest[s.name]}</td>`);
+  tfoot += `<td colspan="3"></td></tr>`;
+
+  holder.innerHTML = `
+    <div class="sheet-landscape" id="classSheetPrintArea">
+      ${sheetHeaderHtml()}
+      <table class="landscape-tbl">
+        <thead>${thead}</thead>
+        <tbody>${tbody}</tbody>
+        <tfoot>${tfoot}</tfoot>
+      </table>
+      <div class="sheet-footer">
+        <span>Total Students: ${db.students.length}</span>
+        <span>Generated: ${new Date().toLocaleDateString()}</span>
+      </div>
+      <div class="sig-line">
+        <div>Class Teacher${db.school.teacher? " — "+esc(db.school.teacher):""}</div>
+        <div>Principal${db.school.principal? " — "+esc(db.school.principal):""}</div>
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   INDIVIDUAL REPORT (A4 PORTRAIT)
+   ============================================================ */
+function renderIndividualPanel(){
+  const sel = document.getElementById('studentSelect');
+  sel.innerHTML = db.students.map(s=>`<option value="${s.id}">${esc(s.name)||"(unnamed)"}</option>`).join("");
+  const noteWrap = document.getElementById('noteEditorWrap');
+  if(db.students.length===0){
+    document.getElementById('individualSheetHolder').innerHTML = `<div class="card empty-state"><div class="big">🧑‍🎓</div>Add students and marks first to generate report cards.</div>`;
+    noteWrap.style.display = 'none';
+    return;
+  }
+  noteWrap.style.display = 'block';
+  loadNoteForSelected();
+  renderOneReport(sel.value);
+}
+document.getElementById('studentSelect').addEventListener('change',(e)=>{
+  loadNoteForSelected();
+  renderOneReport(e.target.value);
 });
 
-document.getElementById('loginForm').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const btn = document.getElementById('btnLogin');
-  btn.disabled = true; btn.textContent = "Signing in…";
-  try{
-    await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged above handles the redirect
-  }catch(err){
-    let text = "Could not sign in. Please check your email and password.";
-    if(err.code==='auth/invalid-credential' || err.code==='auth/wrong-password') text = "Incorrect email or password.";
-    if(err.code==='auth/user-not-found') text = "No account found with that email.";
-    if(err.code==='auth/too-many-requests') text = "Too many attempts. Please wait a moment and try again.";
-    showMsg(text, 'error');
-    btn.disabled = false; btn.textContent = "Sign In";
-  }
+function loadNoteForSelected(){
+  const sel = document.getElementById('studentSelect');
+  const st = db.students.find(s=>s.id===sel.value);
+  document.getElementById('teacherNoteInput').value = st ? (st.note||"") : "";
+}
+document.getElementById('teacherNoteInput').addEventListener('input',(e)=>{
+  const sel = document.getElementById('studentSelect');
+  const st = db.students.find(s=>s.id===sel.value);
+  if(!st) return;
+  st.note = e.target.value;
+  saveDB();
+  renderOneReport(sel.value); // live-update the note on the printable sheet
 });
 
-document.getElementById('forgotLink').addEventListener('click', async ()=>{
-  const email = document.getElementById('loginEmail').value.trim();
-  if(!email){ showMsg("Enter your email above first, then click 'Forgot password?'", 'error'); return; }
-  try{
-    await sendPasswordResetEmail(auth, email);
-    showMsg("A password reset link has been sent to " + email + ".", 'ok');
-  }catch(err){
-    showMsg("Could not send reset email. Please check the address and try again.", 'error');
+function individualReportHtml(row, highest){
+  const sc = db.school;
+  const logo = sc.logo ? `<img src="${sc.logo}">` : `🏫`;
+  const subs = db.subjects;
+  let tbody = subs.map(s=>{
+    const v = row.marks[s.name];
+    const mark = (v===""||v===undefined||v===null) ? "-" : v;
+    const hi = highest[s.name]===null?"-":highest[s.name];
+    return `<tr><td class="sname">${esc(s.name)}</td><td><b>${mark}</b></td><td class="hi-col">${hi}</td><td>${s.max}</td></tr>`;
+  }).join("");
+
+  return `
+    <div class="sheet-portrait">
+      <div class="p-header">
+        <div class="logo-box">${logo}</div>
+        <div class="htext">
+          <div class="sname">${esc(sc.name)||"Your School Name"}</div>
+          <div class="saddr">${esc(sc.addr)||""}</div>
+          <div class="sexam">${esc(sc.exam)||"Term Examination"} ${sc.year?("· "+esc(sc.year)):""}</div>
+        </div>
+        <div class="logo-box rlogo" style="visibility:hidden;">${logo}</div>
+      </div>
+
+      <div class="student-meta">
+        <div><span class="k">Student Name</span><span class="v">${esc(row.name)||"—"}</span></div>
+        <div><span class="k">Admission No.</span><span class="v">${esc(row.adm)||"—"}</span></div>
+        <div><span class="k">Class</span><span class="v">${esc(sc.cls)||"—"}</span></div>
+        <div><span class="k">Rank in Class</span><span class="v">${row.rank} of ${db.students.length}</span></div>
+      </div>
+
+      <table class="report-tbl">
+        <thead><tr><th style="text-align:left;">Subject</th><th>Marks Obtained</th><th>Highest in Class</th><th>Max Marks</th></tr></thead>
+        <tbody>${tbody}</tbody>
+        <tfoot><tr><td>Total</td><td colspan="3">${row.total} / ${subs.reduce((a,s)=>a+Number(s.max),0)}</td></tr></tfoot>
+      </table>
+
+      <div class="summary-row">
+        <div class="summary-box"><div class="lbl">Total Marks</div><div class="val">${row.total}</div></div>
+        <div class="summary-box"><div class="lbl">Average</div><div class="val">${row.avg.toFixed(1)}</div></div>
+        <div class="summary-box rank"><div class="lbl">Class Rank</div><div class="val">${row.rank}</div></div>
+      </div>
+
+      <div class="remarks-box"><b>Class Teacher's Special Note:</b><br>${row.note ? esc(row.note).replace(/\n/g,'<br>') : "&nbsp;"}</div>
+
+      <div class="sig-row">
+        <div>Class Teacher's Signature${db.school.teacher? "<br><span style='font-size:11px;'>"+esc(db.school.teacher)+"</span>":""}</div>
+        <div>Parent / Guardian's Signature</div>
+        <div>Principal's Signature${db.school.principal? "<br><span style='font-size:11px;'>"+esc(db.school.principal)+"</span>":""}</div>
+      </div>
+
+      <div class="p-footer">${esc(sc.name)||"School"} · ${esc(sc.exam)||"Term Examination"} ${sc.year?("· "+esc(sc.year)):""} · Generated ${new Date().toLocaleDateString()}</div>
+    </div>`;
+}
+
+function renderOneReport(studentId){
+  const {highest, rows} = computeStats();
+  const row = rows.find(r=>r.id===studentId);
+  const holder = document.getElementById('individualSheetHolder');
+  if(!row){ holder.innerHTML=""; return; }
+  holder.innerHTML = `<div id="individualPrintArea">${individualReportHtml(row, highest)}</div>`;
+}
+
+function renderAllReports(){
+  const {highest, rows} = computeStats();
+  return rows.map(r=>individualReportHtml(r, highest)).join('<div style="page-break-after:always;"></div>');
+}
+
+/* ============================================================
+   PRINT (window.print with dynamic @page orientation)
+   ============================================================ */
+function setPageSize(size){
+  let styleEl = document.getElementById('page-size-style');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'page-size-style';
+    document.head.appendChild(styleEl);
   }
+  styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 8mm; } }`;
+}
+
+document.getElementById('btnPrintClass').addEventListener('click',()=>{
+  setPageSize('landscape');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-class').classList.add('print-active');
+  window.print();
 });
+document.getElementById('btnPrintOne').addEventListener('click',()=>{
+  setPageSize('portrait');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-individual').classList.add('print-active');
+  window.print();
+});
+
+/* ============================================================
+   PDF DOWNLOAD (html2pdf.js)
+   ============================================================ */
+function downloadPdf(el, filename, orientation){
+  const opt = {
+    margin: 0,
+    filename,
+    image:{ type:'jpeg', quality:0.98 },
+    html2canvas:{ scale:2, useCORS:true },
+    jsPDF:{ unit:'mm', format:'a4', orientation }
+  };
+  html2pdf().set(opt).from(el).save();
+}
+
+document.getElementById('btnPdfClass').addEventListener('click',()=>{
+  const el = document.getElementById('classSheetPrintArea');
+  if(!el) return alert("Add subjects and students first.");
+  downloadPdf(el, `Class-Marksheet-${(db.school.cls||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
+});
+
+document.getElementById('btnPdfOne').addEventListener('click',()=>{
+  const el = document.getElementById('individualPrintArea');
+  if(!el) return alert("Select a student first.");
+  const sel = document.getElementById('studentSelect');
+  const name = sel.options[sel.selectedIndex]?.text || 'student';
+  downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}.pdf`, 'portrait');
+});
+
+document.getElementById('btnPdfAll').addEventListener('click',()=>{
+  if(db.students.length===0) return alert("Add students first.");
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = renderAllReports();
+  document.body.appendChild(wrapper);
+  const opt = {
+    margin:0,
+    filename:`All-Student-Reports-${(db.school.cls||'class').replace(/\s+/g,'_')}.pdf`,
+    image:{ type:'jpeg', quality:0.98 },
+    html2canvas:{ scale:2, useCORS:true },
+    jsPDF:{ unit:'mm', format:'a4', orientation:'portrait' },
+    pagebreak:{ mode:['css'] }
+  };
+  html2pdf().set(opt).from(wrapper).save().then(()=>{
+    document.body.removeChild(wrapper);
+  });
+});
+
+/* ============================================================
+   BACKUP / RESTORE
+   ============================================================ */
+document.getElementById('btnExport').addEventListener('click',()=>{
+  const blob = new Blob([JSON.stringify(db,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `marks-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('btnImportTrigger').addEventListener('click',()=>{
+  document.getElementById('btnImport').click();
+});
+document.getElementById('btnImport').addEventListener('change',(e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed.school || !parsed.subjects || !parsed.students) throw new Error("Invalid file");
+      if(!confirm("This will replace all current data with the backup file. Continue?")) return;
+      db = parsed;
+      saveDB();
+      fillSetupForm();
+      renderEntryTable();
+      renderClassSheet();
+      renderIndividualPanel();
+      alert("Data restored successfully.");
+    }catch(err){
+      alert("Could not read this backup file. Please choose a valid backup JSON.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+loadDB();
+fillSetupForm();
+renderEntryTable();
 </script>
 </body>
 </html>
