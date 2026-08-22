@@ -1,1 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Term Examination Marks Report System</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
 
+<div class="appbar no-print">
+  <div class="brand-logo" id="appLogo">SC</div>
+  <div class="brand-text">
+    <span class="sch" id="appSchoolName">Your School Name</span>
+    <span class="sub">Admin Dashboard</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="role-badge">Principal</span>
+  <span class="who" id="whoAmI"></span>
+  <button class="ghost" id="btnLogout">Sign Out</button>
+</div>
+
+<div class="tabs no-print">
+  <button data-tab="setup" class="active">1 · School Setup</button>
+  <button data-tab="subjects">2 · Subjects</button>
+  <button data-tab="teachers">3 · Class Teachers</button>
+  <button data-tab="view">4 · View / Print / Download</button>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ PANEL: SCHOOL SETUP ============ -->
+  <div class="panel active" id="panel-setup">
+    <div class="card">
+      <h2>School & Examination Details</h2>
+      <p class="hint">These appear as the header on every marksheet and report card across all classes.</p>
+      <div class="grid2">
+        <div>
+          <div class="field"><label>School Name</label><input type="text" id="s_name" placeholder="e.g. St. Mary's Tamil Maha Vidyalaya"></div>
+          <div class="field"><label>School Address</label><textarea id="s_addr" placeholder="e.g. Bambalapitiya, Colombo"></textarea></div>
+          <div class="field"><label>Academic Year</label><input type="text" id="s_year" placeholder="e.g. 2026"></div>
+          <div class="field"><label>Examination Title</label><input type="text" id="s_exam" placeholder="e.g. Second Term Examination"></div>
+        </div>
+        <div>
+          <div class="field">
+            <label>School Logo / Crest</label>
+            <div class="logo-drop" id="logoDrop">
+              <div id="logoPreviewWrap"><div style="font-size:26px;">🖼</div><div>Click to upload logo (PNG/JPG)</div></div>
+              <input type="file" id="logoInput" accept="image/*">
+            </div>
+          </div>
+          <div class="field"><label>Principal Name (for signature line)</label><input type="text" id="s_principal" placeholder="e.g. Mr. R. Antonraj"></div>
+        </div>
+      </div>
+      <div class="toolbar"><button class="btn" id="btnSaveSetup">Save School Setup</button><span class="meta-note" id="setupSavedNote"></span></div>
+    </div>
+  </div>
+
+  <!-- ============ PANEL: SUBJECTS ============ -->
+  <div class="panel" id="panel-subjects">
+    <div class="card">
+      <h2>Subjects (this term)</h2>
+      <p class="hint">These subjects apply to every class. Every class teacher will see the same subject columns.</p>
+      <div id="subjectTags"></div>
+      <div class="toolbar" style="margin-top:6px;">
+        <input type="text" id="newSubjectName" placeholder="Subject name" style="max-width:240px;">
+        <input type="number" id="newSubjectMax" placeholder="Max marks" value="100" style="max-width:110px;">
+        <button class="btn outline" id="btnAddSubject">+ Add Subject</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PANEL: TEACHERS / CLASSES ============ -->
+  <div class="panel" id="panel-teachers">
+    <div class="card">
+      <h2>Add a Class Teacher</h2>
+      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. They'll receive an email with a secure link to set their own password.</p>
+      <div class="grid3">
+        <div class="field"><label>Class Name</label><input type="text" id="t_class" placeholder="e.g. Grade 10 - A"></div>
+        <div class="field"><label>Teacher's Name</label><input type="text" id="t_name" placeholder="e.g. Mrs. K. Selvi"></div>
+        <div class="field"><label>Teacher's Email</label><input type="email" id="t_email" placeholder="teacher@email.com"></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn gold" id="btnCreateTeacher">+ Create Teacher Account</button>
+        <span class="meta-note" id="createTeacherNote"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Class Teachers & Submission Status</h2>
+      <p class="hint">Share this link with every class teacher: <b id="shareLink">—</b> <button class="btn small outline" id="btnCopyLink">Copy Link</button></p>
+      <table class="classlist" id="classListTable">
+        <thead><tr><th>Class</th><th>Teacher</th><th>Email</th><th>Status</th><th>Students</th><th></th></tr></thead>
+        <tbody id="classListBody"><tr><td colspan="6" class="meta-note">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ PANEL: VIEW / PRINT / DOWNLOAD ============ -->
+  <div class="panel" id="panel-view">
+    <div class="preview-toolbar no-print">
+      <label style="margin:0;">Class:</label>
+      <select id="viewClassSelect" style="min-width:200px;"></select>
+      <span class="spacer"></span>
+      <button class="btn small outline" id="btnReopen" style="display:none;">Reopen for Editing</button>
+    </div>
+
+    <div class="preview-toolbar no-print" id="viewSheetToolbar" style="display:none;">
+      <b>Class Marksheet</b>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintClass">🖨 Print</button>
+      <button class="btn gold" id="btnPdfClass">⬇ Download PDF</button>
+    </div>
+    <div id="classSheetHolder"></div>
+
+    <div class="preview-toolbar no-print" id="viewIndivToolbar" style="display:none;">
+      <b>Individual Report</b>
+      <select id="studentSelect"></select>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintOne">🖨 Print</button>
+      <button class="btn gold" id="btnPdfOne">⬇ Download PDF</button>
+      <button class="btn outline" id="btnPdfAll">⬇ Download All (PDF)</button>
+    </div>
+    <div id="individualSheetHolder"></div>
+  </div>
+
+</div>
+
+<div class="modal-backdrop" id="teacherCreatedModal" style="display:none;">
+  <div class="modal">
+    <h3>Teacher account created</h3>
+    <p class="hint" id="teacherCreatedText"></p>
+    <div class="field"><label>Sign-in link to share</label><input type="text" id="shareLinkModal" readonly></div>
+    <div class="toolbar"><button class="btn" id="btnCloseModal">Done</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { app, auth, db } from "./firebase-init.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
+
+let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
+let subjects = [];
+let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, submitted, submittedAt}]
+let currentUser = null;
+
+document.getElementById('shareLink').textContent = window.location.origin + window.location.pathname.replace('admin.html','index.html');
+document.getElementById('shareLinkModal').value = window.location.origin + window.location.pathname.replace('admin.html','index.html');
+
+/* ===== AUTH GUARD ===== */
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ window.location.href = 'index.html'; return; }
+  const snap = await getDoc(doc(db,'users',user.uid));
+  if(!snap.exists() || snap.data().role!=='admin'){
+    alert("This account doesn't have Principal access.");
+    await signOut(auth);
+    window.location.href = 'index.html';
+    return;
+  }
+  currentUser = {uid:user.uid, ...snap.data()};
+  document.getElementById('whoAmI').textContent = currentUser.name || user.email;
+  initData();
+});
+document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth).then(()=>window.location.href='index.html'));
+
+/* ===== LIVE DATA ===== */
+function initData(){
+  onSnapshot(doc(db,'meta','school'), (snap)=>{
+    if(snap.exists()){ school = snap.data(); fillSetupForm(); renderTopBar(); }
+  });
+  onSnapshot(doc(db,'meta','subjects'), (snap)=>{
+    subjects = snap.exists() ? (snap.data().list||[]) : [];
+    renderSubjectTags();
+    populateClassSelectIfReady();
+  });
+  onSnapshot(collection(db,'classes'), (snapshot)=>{
+    classes = [];
+    snapshot.forEach(d=> classes.push({id:d.id, ...d.data()}));
+    classes.sort((a,b)=> (a.className||"").localeCompare(b.className||""));
+    renderClassList();
+    populateClassSelectIfReady();
+  });
+}
+
+/* ===== TABS ===== */
+document.querySelectorAll('.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ===== TOP BAR ===== */
+function renderTopBar(){
+  document.getElementById('appSchoolName').textContent = school.name || "Your School Name";
+  const logoEl = document.getElementById('appLogo');
+  if(school.logo){ logoEl.innerHTML = `<img src="${school.logo}">`; }
+  else {
+    const initials = (school.name||"S C").split(" ").filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
+    logoEl.textContent = initials || "SC";
+  }
+}
+
+/* ===== SCHOOL SETUP ===== */
+function fillSetupForm(){
+  document.getElementById('s_name').value = school.name||"";
+  document.getElementById('s_addr').value = school.addr||"";
+  document.getElementById('s_year').value = school.year||"";
+  document.getElementById('s_exam').value = school.exam||"";
+  document.getElementById('s_principal').value = school.principal||"";
+  if(school.logo) document.getElementById('logoPreviewWrap').innerHTML = `<img src="${school.logo}">`;
+}
+document.getElementById('btnSaveSetup').addEventListener('click', async ()=>{
+  school.name = document.getElementById('s_name').value.trim();
+  school.addr = document.getElementById('s_addr').value.trim();
+  school.year = document.getElementById('s_year').value.trim();
+  school.exam = document.getElementById('s_exam').value.trim();
+  school.principal = document.getElementById('s_principal').value.trim();
+  await setDoc(doc(db,'meta','school'), school);
+  const note = document.getElementById('setupSavedNote');
+  note.textContent = "Saved ✓"; setTimeout(()=>note.textContent="",1800);
+});
+document.getElementById('logoInput').addEventListener('change',(e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    school.logo = reader.result;
+    document.getElementById('logoPreviewWrap').innerHTML = `<img src="${reader.result}">`;
+    await setDoc(doc(db,'meta','school'), school);
+  };
+  reader.readAsDataURL(file);
+});
+
+/* ===== SUBJECTS ===== */
+function renderSubjectTags(){
+  const wrap = document.getElementById('subjectTags');
+  if(subjects.length===0){ wrap.innerHTML = `<span class="meta-note">No subjects added yet.</span>`; return; }
+  wrap.innerHTML = subjects.map((s,i)=>`<span class="subject-tag">${esc(s.name)} <small>/ ${s.max}</small><button data-i="${i}" class="rmSubject">×</button></span>`).join("");
+  wrap.querySelectorAll('.rmSubject').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const i = Number(b.dataset.i);
+      if(!confirm(`Remove subject "${subjects[i].name}"? This affects all classes.`)) return;
+      subjects.splice(i,1);
+      await setDoc(doc(db,'meta','subjects'), {list:subjects});
+    });
+  });
+}
+document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
+  const nameEl = document.getElementById('newSubjectName');
+  const maxEl = document.getElementById('newSubjectMax');
+  const name = nameEl.value.trim();
+  const max = Number(maxEl.value)||100;
+  if(!name) return alert("Please enter a subject name.");
+  if(subjects.some(s=>s.name.toLowerCase()===name.toLowerCase())) return alert("This subject already exists.");
+  subjects.push({name, max});
+  await setDoc(doc(db,'meta','subjects'), {list:subjects});
+  nameEl.value=""; maxEl.value=100;
+});
+
+/* ===== CREATE TEACHER (secondary Firebase app keeps admin logged in) ===== */
+document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>{
+  const className = document.getElementById('t_class').value.trim();
+  const teacherName = document.getElementById('t_name').value.trim();
+  const email = document.getElementById('t_email').value.trim();
+  const note = document.getElementById('createTeacherNote');
+  if(!className || !teacherName || !email) return alert("Please fill in class name, teacher name, and email.");
+
+  const btn = document.getElementById('btnCreateTeacher');
+  btn.disabled = true; note.textContent = "Creating account…";
+
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryAppForUserCreation_"+Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const tempPassword = Math.random().toString(36).slice(-10) + "Aa1!";
+
+  try{
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPassword);
+    const newUid = cred.user.uid;
+    await sendPasswordResetEmail(secondaryAuth, email);
+    await signOut(secondaryAuth);
+
+    const classRef = await addDoc(collection(db,'classes'), {
+      className, teacherUid:newUid, teacherEmail:email, teacherName,
+      students: [], submitted:false, submittedAt:null
+    });
+    await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id});
+
+    document.getElementById('t_class').value="";
+    document.getElementById('t_name').value="";
+    document.getElementById('t_email').value="";
+    note.textContent = "";
+
+    document.getElementById('teacherCreatedText').innerHTML =
+      `<b>${esc(teacherName)}</b> has been created for <b>${esc(className)}</b>. A password-setup email has been sent to <b>${esc(email)}</b>. Share the sign-in link below with them as well.`;
+    document.getElementById('teacherCreatedModal').style.display='flex';
+  }catch(err){
+    let text = "Could not create the account.";
+    if(err.code==='auth/email-already-in-use') text = "That email is already registered to a teacher.";
+    if(err.code==='auth/invalid-email') text = "Please enter a valid email address.";
+    alert(text);
+  }finally{
+    btn.disabled = false;
+  }
+});
+document.getElementById('btnCloseModal').addEventListener('click', ()=> document.getElementById('teacherCreatedModal').style.display='none');
+document.getElementById('btnCopyLink').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('shareLink').textContent);
+  const b = document.getElementById('btnCopyLink'); const old = b.textContent;
+  b.textContent = "Copied!"; setTimeout(()=>b.textContent=old, 1400);
+});
+
+/* ===== CLASS LIST ===== */
+function renderClassList(){
+  const body = document.getElementById('classListBody');
+  if(classes.length===0){ body.innerHTML = `<tr><td colspan="6" class="meta-note">No classes yet — add a class teacher above.</td></tr>`; return; }
+  body.innerHTML = classes.map(c=>{
+    const count = (c.students||[]).length;
+    let pill = count===0 ? `<span class="status-pill empty">No data</span>`
+      : c.submitted ? `<span class="status-pill submitted">Submitted</span>`
+      : `<span class="status-pill draft">In progress</span>`;
+    return `<tr>
+      <td><b>${esc(c.className)}</b></td>
+      <td>${esc(c.teacherName)}</td>
+      <td>${esc(c.teacherEmail)}</td>
+      <td>${pill}</td>
+      <td>${count}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn small outline" data-id="${c.id}" data-action="view">View</button>
+        <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
+        <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
+      </td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll('[data-action="view"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.tabs button[data-tab="view"]').classList.add('active');
+      document.getElementById('panel-view').classList.add('active');
+      document.getElementById('viewClassSelect').value = b.dataset.id;
+      renderClassView(b.dataset.id);
+    });
+  });
+  body.querySelectorAll('[data-action="edit"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      const newClassName = prompt("Class name:", cls.className || "");
+      if(newClassName===null) return;
+      const newTeacherName = prompt("Teacher's name:", cls.teacherName || "");
+      if(newTeacherName===null) return;
+      await updateDoc(doc(db,'classes',cls.id), {className:newClassName.trim(), teacherName:newTeacherName.trim()});
+      if(cls.teacherUid){
+        await updateDoc(doc(db,'users',cls.teacherUid), {name:newTeacherName.trim()});
+      }
+      alert("Updated. Note: the teacher's sign-in email can't be changed here — to change an email, delete this teacher below and create a new account with the correct email.");
+    });
+  });
+  body.querySelectorAll('[data-action="delete"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      if(!confirm(`Remove "${cls.className}" (${cls.teacherName})? This deletes all marks entered for this class and revokes that teacher's access. This cannot be undone.`)) return;
+      if(!confirm("Please confirm once more — this is permanent. Continue?")) return;
+      await deleteDoc(doc(db,'classes',cls.id));
+      if(cls.teacherUid){
+        await deleteDoc(doc(db,'users',cls.teacherUid));
+      }
+      alert("Removed. Their old sign-in link will now show \"account not set up\" if they try to log in. (Their login credential itself still exists in Firebase Authentication → Users, but it can no longer access anything — you can delete it there too if you'd like to fully remove it.)");
+    });
+  });
+}
+
+/* ===== VIEW / PRINT / DOWNLOAD ===== */
+function populateClassSelectIfReady(){
+  const sel = document.getElementById('viewClassSelect');
+  const current = sel.value;
+  sel.innerHTML = classes.map(c=>`<option value="${c.id}">${esc(c.className)} — ${esc(c.teacherName)}</option>`).join("");
+  if(current && classes.some(c=>c.id===current)){ sel.value = current; }
+  else if(classes.length>0){ renderClassView(classes[0].id); }
+}
+document.getElementById('viewClassSelect').addEventListener('change',(e)=> renderClassView(e.target.value));
+
+let activeClassId = null;
+function renderClassView(classId){
+  activeClassId = classId;
+  const cls = classes.find(c=>c.id===classId);
+  const reopenBtn = document.getElementById('btnReopen');
+  if(!cls){
+    document.getElementById('classSheetHolder').innerHTML = "";
+    document.getElementById('individualSheetHolder').innerHTML = "";
+    document.getElementById('viewSheetToolbar').style.display='none';
+    document.getElementById('viewIndivToolbar').style.display='none';
+    reopenBtn.style.display = 'none';
+    return;
+  }
+  reopenBtn.style.display = cls.submitted ? 'inline-block' : 'none';
+  const students = cls.students || [];
+
+  document.getElementById('viewSheetToolbar').style.display = students.length? 'flex':'none';
+  document.getElementById('classSheetHolder').innerHTML = students.length
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, cls.className)}</div>`
+    : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
+
+  const {highest, rows} = computeStats(subjects, students);
+  const sel = document.getElementById('studentSelect');
+  sel.innerHTML = rows.map(r=>`<option value="${r.id}">${esc(r.name)||"(unnamed)"}</option>`).join("");
+  document.getElementById('viewIndivToolbar').style.display = rows.length? 'flex':'none';
+
+  function showOne(id){
+    const row = rows.find(r=>r.id===id) || rows[0];
+    if(!row){ document.getElementById('individualSheetHolder').innerHTML=""; return; }
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, highest, cls.className)}</div>`;
+  }
+  if(rows.length) showOne(sel.value);
+  sel.onchange = (e)=> showOne(e.target.value);
+
+  window._currentViewRows = rows;
+  window._currentViewHighest = highest;
+  window._currentViewClass = cls;
+}
+
+document.getElementById('btnReopen').addEventListener('click', async ()=>{
+  if(!activeClassId) return;
+  if(!confirm("Reopen this class for editing? The teacher will be able to change marks again.")) return;
+  await updateDoc(doc(db,'classes',activeClassId), {submitted:false});
+});
+
+document.getElementById('btnPrintClass').addEventListener('click', ()=>{
+  setPageSize('landscape');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-view').classList.add('print-active');
+  document.getElementById('viewIndivToolbar').style.setProperty('display','none','important');
+  document.getElementById('individualSheetHolder').style.display='none';
+  window.print();
+  document.getElementById('individualSheetHolder').style.display='';
+});
+document.getElementById('btnPrintOne').addEventListener('click', ()=>{
+  setPageSize('portrait');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-view').classList.add('print-active');
+  document.getElementById('classSheetHolder').style.display='none';
+  window.print();
+  document.getElementById('classSheetHolder').style.display='';
+});
+document.getElementById('btnPdfClass').addEventListener('click', ()=>{
+  const el = document.getElementById('classSheetPrintArea');
+  if(!el) return;
+  const cls = window._currentViewClass;
+  downloadPdf(el, `Class-Marksheet-${(cls.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
+});
+document.getElementById('btnPdfOne').addEventListener('click', ()=>{
+  const el = document.getElementById('individualPrintArea');
+  if(!el) return;
+  const sel = document.getElementById('studentSelect');
+  const name = sel.options[sel.selectedIndex]?.text || 'student';
+  downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}.pdf`, 'portrait');
+});
+document.getElementById('btnPdfAll').addEventListener('click', ()=>{
+  const rows = window._currentViewRows, highest = window._currentViewHighest, cls = window._currentViewClass;
+  if(!rows || rows.length===0) return;
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, cls.className)).join('<div style="page-break-after:always;"></div>');
+  document.body.appendChild(wrapper);
+  const opt = { margin:0, filename:`All-Reports-${(cls.className||'class').replace(/\s+/g,'_')}.pdf`,
+    image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}, pagebreak:{mode:['css']} };
+  window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
+});
+</script>
+</body>
+</html>
