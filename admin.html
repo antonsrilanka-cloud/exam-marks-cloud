@@ -23,9 +23,8 @@
 
 <div class="tabs no-print">
   <button data-tab="setup" class="active">1 · School Setup</button>
-  <button data-tab="subjects">2 · Subjects</button>
-  <button data-tab="teachers">3 · Class Teachers</button>
-  <button data-tab="view">4 · View / Print / Download</button>
+  <button data-tab="teachers">2 · Class Teachers</button>
+  <button data-tab="view">3 · View / Print / Download</button>
 </div>
 
 <div class="wrap">
@@ -57,25 +56,11 @@
     </div>
   </div>
 
-  <!-- ============ PANEL: SUBJECTS ============ -->
-  <div class="panel" id="panel-subjects">
-    <div class="card">
-      <h2>Subjects (this term)</h2>
-      <p class="hint">These subjects apply to every class. Every class teacher will see the same subject columns.</p>
-      <div id="subjectTags"></div>
-      <div class="toolbar" style="margin-top:6px;">
-        <input type="text" id="newSubjectName" placeholder="Subject name" style="max-width:240px;">
-        <input type="number" id="newSubjectMax" placeholder="Max marks" value="100" style="max-width:110px;">
-        <button class="btn outline" id="btnAddSubject">+ Add Subject</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ PANEL: TEACHERS / CLASSES ============ -->
   <div class="panel" id="panel-teachers">
     <div class="card">
       <h2>Add a Class Teacher</h2>
-      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. They'll receive an email with a secure link to set their own password.</p>
+      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. The class teacher sets up their own subjects for their class after logging in. They'll receive an email with a secure link to set their own password.</p>
       <div class="grid3">
         <div class="field"><label>Class Name</label><input type="text" id="t_class" placeholder="e.g. Grade 10 - A"></div>
         <div class="field"><label>Teacher's Name</label><input type="text" id="t_name" placeholder="e.g. Mrs. K. Selvi"></div>
@@ -140,13 +125,12 @@
 import { app, auth, db } from "./firebase-init.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
-let subjects = [];
-let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, submitted, submittedAt}]
+let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt}]
 let currentUser = null;
 
 document.getElementById('shareLink').textContent = window.location.origin + window.location.pathname.replace('admin.html','index.html');
@@ -172,11 +156,6 @@ document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth
 function initData(){
   onSnapshot(doc(db,'meta','school'), (snap)=>{
     if(snap.exists()){ school = snap.data(); fillSetupForm(); renderTopBar(); }
-  });
-  onSnapshot(doc(db,'meta','subjects'), (snap)=>{
-    subjects = snap.exists() ? (snap.data().list||[]) : [];
-    renderSubjectTags();
-    populateClassSelectIfReady();
   });
   onSnapshot(collection(db,'classes'), (snapshot)=>{
     classes = [];
@@ -238,32 +217,6 @@ document.getElementById('logoInput').addEventListener('change',(e)=>{
   reader.readAsDataURL(file);
 });
 
-/* ===== SUBJECTS ===== */
-function renderSubjectTags(){
-  const wrap = document.getElementById('subjectTags');
-  if(subjects.length===0){ wrap.innerHTML = `<span class="meta-note">No subjects added yet.</span>`; return; }
-  wrap.innerHTML = subjects.map((s,i)=>`<span class="subject-tag">${esc(s.name)} <small>/ ${s.max}</small><button data-i="${i}" class="rmSubject">×</button></span>`).join("");
-  wrap.querySelectorAll('.rmSubject').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const i = Number(b.dataset.i);
-      if(!confirm(`Remove subject "${subjects[i].name}"? This affects all classes.`)) return;
-      subjects.splice(i,1);
-      await setDoc(doc(db,'meta','subjects'), {list:subjects});
-    });
-  });
-}
-document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
-  const nameEl = document.getElementById('newSubjectName');
-  const maxEl = document.getElementById('newSubjectMax');
-  const name = nameEl.value.trim();
-  const max = Number(maxEl.value)||100;
-  if(!name) return alert("Please enter a subject name.");
-  if(subjects.some(s=>s.name.toLowerCase()===name.toLowerCase())) return alert("This subject already exists.");
-  subjects.push({name, max});
-  await setDoc(doc(db,'meta','subjects'), {list:subjects});
-  nameEl.value=""; maxEl.value=100;
-});
-
 /* ===== CREATE TEACHER (secondary Firebase app keeps admin logged in) ===== */
 document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>{
   const className = document.getElementById('t_class').value.trim();
@@ -287,7 +240,7 @@ document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>
 
     const classRef = await addDoc(collection(db,'classes'), {
       className, teacherUid:newUid, teacherEmail:email, teacherName,
-      students: [], submitted:false, submittedAt:null
+      students: [], subjects: [], submitted:false, submittedAt:null
     });
     await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id});
 
@@ -330,7 +283,11 @@ function renderClassList(){
       <td>${esc(c.teacherEmail)}</td>
       <td>${pill}</td>
       <td>${count}</td>
-      <td><button class="btn small outline" data-id="${c.id}" data-action="view">View</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn small outline" data-id="${c.id}" data-action="view">View</button>
+        <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
+        <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
+      </td>
     </tr>`;
   }).join("");
   body.querySelectorAll('[data-action="view"]').forEach(b=>{
@@ -341,6 +298,34 @@ function renderClassList(){
       document.getElementById('panel-view').classList.add('active');
       document.getElementById('viewClassSelect').value = b.dataset.id;
       renderClassView(b.dataset.id);
+    });
+  });
+  body.querySelectorAll('[data-action="edit"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      const newClassName = prompt("Class name:", cls.className || "");
+      if(newClassName===null) return;
+      const newTeacherName = prompt("Teacher's name:", cls.teacherName || "");
+      if(newTeacherName===null) return;
+      await updateDoc(doc(db,'classes',cls.id), {className:newClassName.trim(), teacherName:newTeacherName.trim()});
+      if(cls.teacherUid){
+        await updateDoc(doc(db,'users',cls.teacherUid), {name:newTeacherName.trim()});
+      }
+      alert("Updated. Note: the teacher's sign-in email can't be changed here — to change an email, delete this teacher below and create a new account with the correct email.");
+    });
+  });
+  body.querySelectorAll('[data-action="delete"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      if(!confirm(`Remove "${cls.className}" (${cls.teacherName})? This deletes all marks entered for this class and revokes that teacher's access. This cannot be undone.`)) return;
+      if(!confirm("Please confirm once more — this is permanent. Continue?")) return;
+      await deleteDoc(doc(db,'classes',cls.id));
+      if(cls.teacherUid){
+        await deleteDoc(doc(db,'users',cls.teacherUid));
+      }
+      alert("Removed. Their old sign-in link will now show \"account not set up\" if they try to log in. (Their login credential itself still exists in Firebase Authentication → Users, but it can no longer access anything — you can delete it there too if you'd like to fully remove it.)");
     });
   });
 }
@@ -370,11 +355,14 @@ function renderClassView(classId){
   }
   reopenBtn.style.display = cls.submitted ? 'inline-block' : 'none';
   const students = cls.students || [];
+  const subjects = cls.subjects || [];
 
   document.getElementById('viewSheetToolbar').style.display = students.length? 'flex':'none';
   document.getElementById('classSheetHolder').innerHTML = students.length
     ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, cls.className)}</div>`
-    : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
+    : subjects.length===0
+      ? `<div class="card empty-state"><div class="big">📋</div>This class teacher hasn't set up subjects yet.</div>`
+      : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
 
   const {highest, rows} = computeStats(subjects, students);
   const sel = document.getElementById('studentSelect');
@@ -392,6 +380,7 @@ function renderClassView(classId){
   window._currentViewRows = rows;
   window._currentViewHighest = highest;
   window._currentViewClass = cls;
+  window._currentViewSubjects = subjects;
 }
 
 document.getElementById('btnReopen').addEventListener('click', async ()=>{
@@ -431,7 +420,7 @@ document.getElementById('btnPdfOne').addEventListener('click', ()=>{
   downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}.pdf`, 'portrait');
 });
 document.getElementById('btnPdfAll').addEventListener('click', ()=>{
-  const rows = window._currentViewRows, highest = window._currentViewHighest, cls = window._currentViewClass;
+  const rows = window._currentViewRows, highest = window._currentViewHighest, cls = window._currentViewClass, subjects = window._currentViewSubjects || [];
   if(!rows || rows.length===0) return;
   const wrapper = document.createElement('div');
   wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, cls.className)).join('<div style="page-break-after:always;"></div>');
