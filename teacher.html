@@ -130,7 +130,7 @@ function initData(){
   onSnapshot(doc(db,'meta','school'), (snap)=>{
     if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
   });
-  onSnapshot(doc(db,'classes',classId), (snap)=>{
+  onSnapshot(doc(db,'classes',classId), {includeMetadataChanges:true}, (snap)=>{
     if(snap.exists()){
       classData = snap.data();
       subjects = classData.subjects || [];
@@ -138,9 +138,11 @@ function initData(){
       document.getElementById('entryClassName').textContent = classData.className || "";
       document.getElementById('subjectsClassName').textContent = classData.className || "";
       renderStatusBanner();
-      renderSubjectTags();
-      renderEntryTable();
-      renderAllViews();
+      if(!snap.metadata.hasPendingWrites){
+        renderSubjectTags();
+        renderEntryTable();
+        renderAllViews();
+      }
     }
   });
 }
@@ -183,6 +185,8 @@ function renderSubjectTags(){
       subjects.splice(i,1);
       classData.subjects = subjects;
       (classData.students||[]).forEach(st=>{ if(st.marks) delete st.marks[name]; });
+      renderSubjectTags();
+      renderEntryTable();
       await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
     });
   });
@@ -198,6 +202,8 @@ document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
   subjects.push({name, max});
   classData.subjects = subjects;
   (classData.students||[]).forEach(st=>{ if(!st.marks) st.marks={}; if(!(name in st.marks)) st.marks[name]=""; });
+  renderSubjectTags();
+  renderEntryTable();
   await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
   nameEl.value=""; maxEl.value=100;
 });
