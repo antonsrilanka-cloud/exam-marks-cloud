@@ -130,7 +130,7 @@ function initData(){
   onSnapshot(doc(db,'meta','school'), (snap)=>{
     if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
   });
-  onSnapshot(doc(db,'classes',classId), {includeMetadataChanges:true}, (snap)=>{
+  onSnapshot(doc(db,'classes',classId), (snap)=>{
     if(snap.exists()){
       classData = snap.data();
       subjects = classData.subjects || [];
@@ -138,13 +138,27 @@ function initData(){
       document.getElementById('entryClassName').textContent = classData.className || "";
       document.getElementById('subjectsClassName').textContent = classData.className || "";
       renderStatusBanner();
-      if(!snap.metadata.hasPendingWrites){
+      // Never rebuild the input grid while someone's cursor is actually inside
+      // it — rebuilding replaces the input elements and kicks the cursor out.
+      // Checking who has focus (rather than guessing from save timing) is the
+      // only way to guarantee typing is never interrupted.
+      if(!isEditingSomething()){
         renderSubjectTags();
         renderEntryTable();
         renderAllViews();
       }
     }
   });
+}
+
+function isEditingSomething(){
+  const ae = document.activeElement;
+  if(!ae) return false;
+  const entryBody = document.getElementById('entryBody');
+  const noteInput = document.getElementById('teacherNoteInput');
+  const subjName = document.getElementById('newSubjectName');
+  const subjMax = document.getElementById('newSubjectMax');
+  return (entryBody && entryBody.contains(ae)) || ae===noteInput || ae===subjName || ae===subjMax;
 }
 
 function renderTopBar(){
