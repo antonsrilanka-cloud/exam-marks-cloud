@@ -25,6 +25,7 @@
   <button data-tab="setup" class="active">1 · School Setup</button>
   <button data-tab="teachers">2 · Class Teachers</button>
   <button data-tab="view">3 · View / Print / Download</button>
+  <button data-tab="history">4 · Exam History</button>
 </div>
 
 <div class="wrap">
@@ -75,6 +76,10 @@
     <div class="card">
       <h2>Class Teachers & Submission Status</h2>
       <p class="hint">Share this link with every class teacher: <b id="shareLink">—</b> <button class="btn small outline" id="btnCopyLink">Copy Link</button></p>
+      <p class="hint">When it's time for a new exam, use <b>New Exam</b> on a class instead of re-adding the teacher — it archives their current results into <b>Exam History</b> and gives them a fresh blank sheet, using the exact same login. No new account or password email needed.</p>
+      <div class="toolbar" style="margin-bottom:14px;">
+        <button class="btn outline" id="btnNewExamAll">Start New Exam for All Classes</button>
+      </div>
       <table class="classlist" id="classListTable">
         <thead><tr><th>Class</th><th>Teacher</th><th>Email</th><th>Status</th><th>Students</th><th></th></tr></thead>
         <tbody id="classListBody"><tr><td colspan="6" class="meta-note">Loading…</td></tr></tbody>
@@ -110,6 +115,19 @@
     <div id="individualSheetHolder"></div>
   </div>
 
+  <!-- ============ PANEL: EXAM HISTORY ============ -->
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <h2>Exam History</h2>
+      <p class="hint">Past exams, archived automatically whenever "New Exam" was started for a class. These are kept exactly as they were on the day they were archived.</p>
+      <table class="classlist" id="historyTable">
+        <thead><tr><th>Class</th><th>Exam</th><th>Teacher</th><th>Students</th><th></th></tr></thead>
+        <tbody id="historyBody"><tr><td colspan="5" class="meta-note">No exam history yet.</td></tr></tbody>
+      </table>
+    </div>
+    <div id="historyViewHolder"></div>
+  </div>
+
 </div>
 
 <div class="modal-backdrop" id="teacherCreatedModal" style="display:none;">
@@ -125,12 +143,13 @@
 import { app, auth, db } from "./firebase-init.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
-let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt}]
+let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested}]
+let examHistory = []; // [{id, classId, className, teacherName, examTitle, examYear, subjects, students, submitted, submittedAt, archivedAt}]
 let currentUser = null;
 
 document.getElementById('shareLink').textContent = window.location.origin + window.location.pathname.replace('admin.html','index.html');
@@ -163,6 +182,16 @@ function initData(){
     classes.sort((a,b)=> (a.className||"").localeCompare(b.className||""));
     renderClassList();
     populateClassSelectIfReady();
+  });
+  onSnapshot(collection(db,'examHistory'), (snapshot)=>{
+    examHistory = [];
+    snapshot.forEach(d=>{
+      const data = d.data();
+      const millis = data.archivedAt && data.archivedAt.toMillis ? data.archivedAt.toMillis() : 0;
+      examHistory.push({id:d.id, ...data, archivedAtMillis: millis});
+    });
+    examHistory.sort((a,b)=> b.archivedAtMillis - a.archivedAtMillis);
+    renderExamHistory();
   });
 }
 
@@ -277,7 +306,10 @@ function renderClassList(){
     let pill = count===0 ? `<span class="status-pill empty">No data</span>`
       : c.submitted ? `<span class="status-pill submitted">Submitted</span>`
       : `<span class="status-pill draft">In progress</span>`;
-    return `<tr>
+    if(c.editRequested){
+      pill += ` <span class="status-pill" style="background:#fdeaea;color:#b3432d;">⚠ Edit Requested</span>`;
+    }
+    return `<tr${c.editRequested ? ' style="background:#fff7f0;"' : ''}>
       <td><b>${esc(c.className)}</b></td>
       <td>${esc(c.teacherName)}</td>
       <td>${esc(c.teacherEmail)}</td>
@@ -286,6 +318,8 @@ function renderClassList(){
       <td style="white-space:nowrap;">
         <button class="btn small outline" data-id="${c.id}" data-action="view">View</button>
         <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
+        ${c.editRequested ? `<button class="btn small gold" data-id="${c.id}" data-action="allowedit">Allow Edit</button>` : ''}
+        <button class="btn small outline" data-id="${c.id}" data-action="newexam">New Exam</button>
         <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
       </td>
     </tr>`;
@@ -315,6 +349,21 @@ function renderClassList(){
       alert("Updated. Note: the teacher's sign-in email can't be changed here — to change an email, delete this teacher below and create a new account with the correct email.");
     });
   });
+  body.querySelectorAll('[data-action="allowedit"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      if(!confirm("Allow this teacher to edit their submitted marks again?")) return;
+      await updateDoc(doc(db,'classes',b.dataset.id), {submitted:false, editRequested:false, editRequestedAt:null});
+    });
+  });
+  body.querySelectorAll('[data-action="newexam"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      if(!confirm(`Archive "${cls.className}"'s current results (${school.exam||'this exam'}${school.year?(' · '+school.year):''}) into Exam History, and start a fresh blank marks sheet for ${cls.teacherName}?\n\nTheir login stays exactly the same — no new account or email needed.`)) return;
+      await startNewExamForClass(cls);
+      alert("Done — the old results are saved under Exam History, and a fresh sheet is ready for this class.");
+    });
+  });
   body.querySelectorAll('[data-action="delete"]').forEach(b=>{
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
@@ -327,6 +376,87 @@ function renderClassList(){
       }
       alert("Removed. Their old sign-in link will now show \"account not set up\" if they try to log in. (Their login credential itself still exists in Firebase Authentication → Users, but it can no longer access anything — you can delete it there too if you'd like to fully remove it.)");
     });
+  });
+}
+
+/* ===== START NEW EXAM (archives current data, keeps the same teacher login) ===== */
+async function startNewExamForClass(cls){
+  await addDoc(collection(db,'examHistory'), {
+    classId: cls.id,
+    className: cls.className,
+    teacherName: cls.teacherName,
+    teacherEmail: cls.teacherEmail,
+    examTitle: school.exam || '',
+    examYear: school.year || '',
+    subjects: cls.subjects || [],
+    students: cls.students || [],
+    submitted: !!cls.submitted,
+    submittedAt: cls.submittedAt || null,
+    archivedAt: serverTimestamp()
+  });
+  await updateDoc(doc(db,'classes',cls.id), {
+    subjects: [], students: [], submitted:false, submittedAt:null, editRequested:false, editRequestedAt:null
+  });
+}
+document.getElementById('btnNewExamAll').addEventListener('click', async ()=>{
+  if(classes.length===0) return alert("No classes yet.");
+  if(!confirm(`Archive ALL ${classes.length} classes' current results into Exam History, and start fresh blank sheets for every class? Everyone's login stays exactly the same.`)) return;
+  const btn = document.getElementById('btnNewExamAll');
+  btn.disabled = true; btn.textContent = "Working…";
+  for(const cls of classes){
+    await startNewExamForClass(cls);
+  }
+  btn.disabled = false; btn.textContent = "Start New Exam for All Classes";
+  alert("New exam started for all classes. Don't forget to update the Examination Title / Year in School Setup for the new term.");
+});
+
+/* ===== EXAM HISTORY ===== */
+function renderExamHistory(){
+  const body = document.getElementById('historyBody');
+  if(examHistory.length===0){
+    body.innerHTML = `<tr><td colspan="5" class="meta-note">No exam history yet — archives appear here after you use "New Exam" on a class.</td></tr>`;
+    return;
+  }
+  body.innerHTML = examHistory.map(h=>`<tr>
+    <td><b>${esc(h.className)}</b></td>
+    <td>${esc(h.examTitle)||'—'}${h.examYear?(' · '+esc(h.examYear)):''}</td>
+    <td>${esc(h.teacherName)}</td>
+    <td>${(h.students||[]).length}</td>
+    <td><button class="btn small outline" data-id="${h.id}" data-action="viewhistory">View</button></td>
+  </tr>`).join("");
+  body.querySelectorAll('[data-action="viewhistory"]').forEach(b=>{
+    b.addEventListener('click', ()=> renderHistoryView(b.dataset.id));
+  });
+}
+
+function renderHistoryView(historyId){
+  const h = examHistory.find(x=>x.id===historyId);
+  if(!h) return;
+  const histSchool = {...school, exam:h.examTitle, year:h.examYear};
+  const subjects = h.subjects||[];
+  const students = h.students||[];
+  const holder = document.getElementById('historyViewHolder');
+  if(students.length===0){
+    holder.innerHTML = `<div class="card empty-state"><div class="big">📋</div>No student data was saved in this archive.</div>`;
+    return;
+  }
+  holder.innerHTML = `
+    <div class="preview-toolbar no-print">
+      <b>${esc(h.className)} — ${esc(h.examTitle)||'Archived Exam'}${h.examYear?(' · '+esc(h.examYear)):''}</b>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintHistory">🖨 Print</button>
+      <button class="btn gold" id="btnPdfHistory">⬇ Download PDF</button>
+    </div>
+    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>`;
+  document.getElementById('btnPrintHistory').addEventListener('click', ()=>{
+    setPageSize('landscape');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+    document.getElementById('panel-history').classList.add('print-active');
+    window.print();
+  });
+  document.getElementById('btnPdfHistory').addEventListener('click', ()=>{
+    const el = document.getElementById('historySheetPrintArea');
+    downloadPdf(el, `Archived-${(h.className||'class').replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`, 'landscape');
   });
 }
 
@@ -386,7 +516,7 @@ function renderClassView(classId){
 document.getElementById('btnReopen').addEventListener('click', async ()=>{
   if(!activeClassId) return;
   if(!confirm("Reopen this class for editing? The teacher will be able to change marks again.")) return;
-  await updateDoc(doc(db,'classes',activeClassId), {submitted:false});
+  await updateDoc(doc(db,'classes',activeClassId), {submitted:false, editRequested:false, editRequestedAt:null});
 });
 
 document.getElementById('btnPrintClass').addEventListener('click', ()=>{
