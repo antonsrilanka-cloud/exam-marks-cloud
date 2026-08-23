@@ -320,6 +320,7 @@ function renderClassList(){
         <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
         ${c.editRequested ? `<button class="btn small gold" data-id="${c.id}" data-action="allowedit">Allow Edit</button>` : ''}
         <button class="btn small outline" data-id="${c.id}" data-action="newexam">New Exam</button>
+              <button class="btn small outline" data-id="${c.id}" data-action="resetpw">Reset Password</button>
         <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
       </td>
     </tr>`;
@@ -364,7 +365,19 @@ function renderClassList(){
       alert("Done — the old results are saved under Exam History, and a fresh sheet is ready for this class.");
     });
   });
-  body.querySelectorAll('[data-action="delete"]').forEach(b=>{
+    body.querySelectorAll('[data-action="resetpw"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(!cls) return;
+      if(!confirm(`Send a password reset link to ${cls.teacherName} (${cls.teacherEmail})? They'll get an email with a secure link to set a new password.`)) return;
+      try{
+        await sendPasswordResetEmail(auth, cls.teacherEmail);
+        alert(`A password reset link has been sent to ${cls.teacherEmail}.`);
+      }catch(err){
+        alert("Could not send the reset email. Please check the address and try again.");
+      }
+    });
+  });body.querySelectorAll('[data-action="delete"]').forEach(b=>{
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
       if(!cls) return;
