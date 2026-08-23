@@ -162,23 +162,23 @@ export function setPageSize(size){
   styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 0; } body{margin:0;} }`;
 }
 
-export function downloadPdf(el, filename, orientation){
-  // Rather than forcing a strict A4 height and letting any overflow spill
-  // onto an awkward, near-empty second page, measure the sheet's actual
-  // rendered size and build the PDF page to match it exactly. This
-  // guarantees a single-sheet report or marksheet always comes out as one
-  // clean page, regardless of small rendering differences between browsers.
+export async function downloadPdf(el, filename, orientation){
+  // Take full manual control instead of relying on html2pdf's automatic
+  // pagination — that logic was still triggering a spurious extra page
+  // even with a custom page size. Instead: capture the sheet as one image,
+  // then place that single image onto one PDF page ourselves. There's no
+  // pagination decision left to make, so it can't split awkwardly.
   const pageWidthMm = orientation === 'landscape' ? 297 : 210;
-  const rect = el.getBoundingClientRect();
-  const pxPerMm = rect.width / pageWidthMm;
-  const pageHeightMm = Math.round((rect.height / pxPerMm) * 100) / 100;
-
-  const opt = {
+  const canvas = await window.html2pdf().set({
     margin: 0,
-    filename,
-    image:{ type:'jpeg', quality:0.98 },
-    html2canvas:{ scale:2, useCORS:true },
-    jsPDF:{ unit:'mm', format:[pageWidthMm, pageHeightMm], orientation }
-  };
-  return window.html2pdf().set(opt).from(el).save();
+    html2canvas:{ scale:2, useCORS:true }
+  }).from(el).toCanvas().get('canvas');
+
+  const imgData = canvas.toDataURL('image/jpeg', 0.98);
+  const pageHeightMm = (canvas.height / canvas.width) * pageWidthMm;
+
+  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, pageHeightMm], orientation });
+  pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
+  pdf.save(filename);
 }
