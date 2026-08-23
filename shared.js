@@ -164,14 +164,22 @@ export function setPageSize(size){
 
 export async function downloadPdf(el, filename, orientation){
   // Take full manual control instead of relying on html2pdf's automatic
-  // pagination — that logic was still triggering a spurious extra page
-  // even with a custom page size. Instead: capture the sheet as one image,
-  // then place that single image onto one PDF page ourselves. There's no
-  // pagination decision left to make, so it can't split awkwardly.
+  // pagination, and explicitly correct for the page's current scroll
+  // position — without this, capturing an element that sits partway down
+  // a long page (below toolbars, other sections, etc.) can produce a
+  // canvas with blank space at the top equal to however far the page had
+  // been scrolled, which is what was causing the stray blank page.
   const pageWidthMm = orientation === 'landscape' ? 297 : 210;
   const canvas = await window.html2pdf().set({
     margin: 0,
-    html2canvas:{ scale:2, useCORS:true }
+    html2canvas:{
+      scale:2,
+      useCORS:true,
+      scrollX: 0,
+      scrollY: -window.scrollY,
+      windowWidth: document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight
+    }
   }).from(el).toCanvas().get('canvas');
 
   const imgData = canvas.toDataURL('image/jpeg', 0.98);
