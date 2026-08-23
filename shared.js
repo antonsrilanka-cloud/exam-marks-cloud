@@ -163,12 +163,22 @@ export function setPageSize(size){
 }
 
 export function downloadPdf(el, filename, orientation){
+  // Rather than forcing a strict A4 height and letting any overflow spill
+  // onto an awkward, near-empty second page, measure the sheet's actual
+  // rendered size and build the PDF page to match it exactly. This
+  // guarantees a single-sheet report or marksheet always comes out as one
+  // clean page, regardless of small rendering differences between browsers.
+  const pageWidthMm = orientation === 'landscape' ? 297 : 210;
+  const rect = el.getBoundingClientRect();
+  const pxPerMm = rect.width / pageWidthMm;
+  const pageHeightMm = Math.round((rect.height / pxPerMm) * 100) / 100;
+
   const opt = {
     margin: 0,
     filename,
     image:{ type:'jpeg', quality:0.98 },
     html2canvas:{ scale:2, useCORS:true },
-    jsPDF:{ unit:'mm', format:'a4', orientation }
+    jsPDF:{ unit:'mm', format:[pageWidthMm, pageHeightMm], orientation }
   };
   return window.html2pdf().set(opt).from(el).save();
 }
