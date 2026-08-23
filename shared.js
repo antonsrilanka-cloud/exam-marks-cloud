@@ -155,7 +155,11 @@ export function setPageSize(size){
     styleEl.id = 'page-size-style';
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 8mm; } }`;
+  // The report sheets are already built to exact A4 dimensions with their own
+  // internal spacing baked in (see .sheet-portrait / .sheet-landscape). Adding
+  // any extra @page margin here on top of that pushes the content past one
+  // physical page, which is what was causing the page-setup problem.
+  styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 0; } body{margin:0;} }`;
 }
 
 export function downloadPdf(el, filename, orientation){
