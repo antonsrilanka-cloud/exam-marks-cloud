@@ -173,8 +173,16 @@ function renderTopBar(){
 
 function renderStatusBanner(){
   const holder = document.getElementById('statusBannerHolder');
-  if(classData.submitted){
-    holder.innerHTML = `<div class="status-banner locked no-print">✓ This class's marks have been <b>submitted</b> to the Principal and are now locked. Contact the Principal if changes are needed.</div>`;
+  if(classData.submitted && classData.editRequested){
+    holder.innerHTML = `<div class="status-banner no-print">✓ Submitted — your request to edit this class's marks has been sent to the Principal. You'll be able to edit again once it's approved.</div>`;
+  } else if(classData.submitted){
+    holder.innerHTML = `<div class="status-banner locked no-print">✓ This class's marks have been <b>submitted</b> to the Principal and are now locked.
+      <button class="btn small outline" id="btnRequestEdit" style="margin-left:10px;">Request permission to edit</button>
+    </div>`;
+    document.getElementById('btnRequestEdit').addEventListener('click', async ()=>{
+      if(!confirm("Send a request to the Principal asking to edit this class's submitted marks? They'll see it highlighted on their dashboard.")) return;
+      await updateDoc(doc(db,'classes',classId), {editRequested:true, editRequestedAt: serverTimestamp()});
+    });
   } else {
     holder.innerHTML = "";
   }
