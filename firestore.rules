@@ -35,6 +35,13 @@ service cloud.firestore {
       allow update: if isAdmin() || (isSignedIn() && resource.data.teacherUid == request.auth.uid);
       allow delete: if isAdmin();
     }
+
+    // Archived exam records, created when the Principal starts a new exam
+    // for a class. Admin-only — this is a read-only historical record for
+    // the Principal, not something class teachers need to access.
+    match /examHistory/{docId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
 
