@@ -140,3 +140,44 @@ export function individualReportHtml(school, subjects, row, highest, className){
 
       <div class="sig-row">
         <div>Class Teacher's Signature</div>
+        <div>Parent / Guardian's Signature</div>
+        <div>Principal's Signature${school.principal? "<br><span style='font-size:10px;'>"+esc(school.principal)+"</span>":""}</div>
+      </div>
+
+      <div class="p-footer">${esc(school.name)||"School"} · ${esc(school.exam)||"Term Examination"} ${school.year?("· "+esc(school.year)):""} · Generated ${new Date().toLocaleDateString()}</div>
+    </div>`;
+}
+
+export function setPageSize(size){
+  let styleEl = document.getElementById('page-size-style');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'page-size-style';
+    document.head.appendChild(styleEl);
+  }
+  // The report sheets are already built to exact A4 dimensions with their own
+  // internal spacing baked in (see .sheet-portrait / .sheet-landscape). Adding
+  // any extra @page margin here on top of that pushes the content past one
+  // physical page, which is what was causing the page-setup problem.
+  styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 0; } body{margin:0;} }`;
+}
+
+export async function downloadPdf(el, filename, orientation){
+  // Capture the precisely-sized report sheet itself (.sheet-portrait /
+  // .sheet-landscape), not the surrounding wrapper div. A plain <div>
+  // wrapper stretches to fill its parent's width, while the sheet inside
+  // it is centered and narrower — capturing the wider wrapper was
+  // including blank space on either side of the sheet, which is what was
+  // throwing off the page dimensions and producing the stray blank page.
+  const target = el.querySelector('.sheet-portrait, .sheet-landscape') || el;
+  const pageWidthMm = orientation === 'landscape' ? 297 : 210;
+  const canvas = await window.html2canvas(target, { scale:2, useCORS:true });
+
+  const imgData = canvas.toDataURL('image/jpeg', 0.98);
+  const pageHeightMm = (canvas.height / canvas.width) * pageWidthMm;
+
+  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, pageHeightMm], orientation });
+  pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
+  pdf.save(filename);
+}
