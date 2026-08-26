@@ -461,10 +461,22 @@ function renderExamHistory(){
     <td>${esc(h.examTitle)||'—'}${h.examYear?(' · '+esc(h.examYear)):''}</td>
     <td>${esc(h.teacherName)}</td>
     <td>${(h.students||[]).length}</td>
-    <td><button class="btn small outline" data-id="${h.id}" data-action="viewhistory">View</button></td>
+    <td style="white-space:nowrap;">
+      <button class="btn small outline" data-id="${h.id}" data-action="viewhistory">View</button>
+      <button class="btn small danger" data-id="${h.id}" data-action="deletehistory">Delete</button>
+    </td>
   </tr>`).join("");
   body.querySelectorAll('[data-action="viewhistory"]').forEach(b=>{
     b.addEventListener('click', ()=> renderHistoryView(b.dataset.id));
+  });
+  body.querySelectorAll('[data-action="deletehistory"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const h = examHistory.find(x=>x.id===b.dataset.id);
+      if(!h) return;
+      if(!confirm(`Permanently delete this archived exam — "${h.examTitle||'(untitled exam)'}"${h.examYear?(' · '+h.examYear):''} for "${h.className}" (${(h.students||[]).length} students)?\n\nThis only removes this one archived record from Exam History. It does NOT affect the class's current live marks sheet, and cannot be undone.`)) return;
+      await deleteDoc(doc(db,'examHistory',h.id));
+      document.getElementById('historyViewHolder').innerHTML = "";
+    });
   });
 }
 
