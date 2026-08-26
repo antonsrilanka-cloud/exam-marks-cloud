@@ -489,6 +489,7 @@ function renderHistoryView(historyId){
     holder.innerHTML = `<div class="card empty-state"><div class="big">📋</div>No student data was saved in this archive.</div>`;
     return;
   }
+  const {highest, rows} = computeStats(subjects, students);
   holder.innerHTML = `
     <div class="preview-toolbar no-print">
       <b>${esc(h.className)} — ${esc(h.examTitle)||'Archived Exam'}${h.examYear?(' · '+esc(h.examYear)):''}</b>
@@ -496,16 +497,64 @@ function renderHistoryView(historyId){
       <button class="btn outline" id="btnPrintHistory">🖨 Print</button>
       <button class="btn gold" id="btnPdfHistory">⬇ Download PDF</button>
     </div>
-    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>`;
+    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>
+
+    <div class="preview-toolbar no-print" style="margin-top:20px;">
+      <b>Individual Report</b>
+      <select id="historyStudentSelect"></select>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintHistoryOne">🖨 Print</button>
+      <button class="btn gold" id="btnPdfHistoryOne">⬇ Download PDF</button>
+      <button class="btn outline" id="btnPdfHistoryAll">⬇ Download All (PDF)</button>
+    </div>
+    <div id="historyIndividualHolder"></div>`;
+
   document.getElementById('btnPrintHistory').addEventListener('click', ()=>{
     setPageSize('landscape');
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
     document.getElementById('panel-history').classList.add('print-active');
+    document.getElementById('historyIndividualHolder').style.display='none';
     window.print();
+    document.getElementById('historyIndividualHolder').style.display='';
   });
   document.getElementById('btnPdfHistory').addEventListener('click', ()=>{
     const el = document.getElementById('historySheetPrintArea');
     downloadPdf(el, `Archived-${(h.className||'class').replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`, 'landscape');
+  });
+
+  const sel = document.getElementById('historyStudentSelect');
+  sel.innerHTML = rows.map(r=>`<option value="${r.id}">${esc(r.name)||"(unnamed)"}</option>`).join("");
+
+  function showOne(id){
+    const row = rows.find(r=>r.id===id) || rows[0];
+    if(!row) return;
+    document.getElementById('historyIndividualHolder').innerHTML = `<div id="historyIndividualPrintArea">${individualReportHtml(histSchool, subjects, row, highest, h.className)}</div>`;
+  }
+  showOne(sel.value);
+  sel.onchange = (e)=> showOne(e.target.value);
+
+  document.getElementById('btnPrintHistoryOne').addEventListener('click', ()=>{
+    setPageSize('portrait');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+    document.getElementById('panel-history').classList.add('print-active');
+    document.getElementById('historySheetPrintArea').style.display='none';
+    window.print();
+    document.getElementById('historySheetPrintArea').style.display='';
+  });
+  document.getElementById('btnPdfHistoryOne').addEventListener('click', ()=>{
+    const el = document.getElementById('historyIndividualPrintArea');
+    if(!el) return;
+    const name = sel.options[sel.selectedIndex]?.text || 'student';
+    downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`, 'portrait');
+  });
+  document.getElementById('btnPdfHistoryAll').addEventListener('click', ()=>{
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = rows.map(r=>individualReportHtml(histSchool, subjects, r, highest, h.className)).join('<div style="page-break-after:always;"></div>');
+    document.body.appendChild(wrapper);
+    const opt = { margin:0, filename:`All-Reports-${(h.className||'class').replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`,
+      image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}, pagebreak:{mode:['css']} };
+    window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
   });
 }
 
