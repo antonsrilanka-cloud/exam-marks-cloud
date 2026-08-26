@@ -41,8 +41,6 @@
         <div>
           <div class="field"><label>School Name</label><input type="text" id="s_name" placeholder="e.g. St. Mary's Tamil Maha Vidyalaya"></div>
           <div class="field"><label>School Address</label><textarea id="s_addr" placeholder="e.g. Bambalapitiya, Colombo"></textarea></div>
-          <div class="field"><label>Default Academic Year</label><input type="text" id="s_year" placeholder="e.g. 2026"></div>
-          <div class="field"><label>Default Examination Title</label><input type="text" id="s_exam" placeholder="e.g. Second Term Examination"></div>
         </div>
         <div>
           <div class="field">
@@ -55,7 +53,7 @@
           <div class="field"><label>Principal Name (for signature line)</label><input type="text" id="s_principal" placeholder="e.g. Mr. R. Antonraj"></div>
         </div>
       </div>
-      <p class="hint">The Academic Year and Examination Title above are only <b>starting suggestions</b> — they pre-fill the prompt when you start a new exam. Each class actually keeps its <b>own</b> exam name and year (set under <b>Class Teachers</b>), so a few classes can be running a different exam — for example a pilot exam — while the rest continue on their current one.</p>
+      <p class="hint">Each class names and schedules its own exam independently — see <b>Class Teachers</b> below.</p>
       <div class="toolbar"><button class="btn" id="btnSaveSetup">Save School Setup</button><span class="meta-note" id="setupSavedNote"></span></div>
     </div>
   </div>
@@ -64,7 +62,7 @@
   <div class="panel" id="panel-teachers">
     <div class="card">
       <h2>Add a Class Teacher</h2>
-      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. The class teacher sets up their own subjects for their class after logging in. They'll receive an email with a secure link to set their own password. The class starts on the default exam name/year from School Setup above — you can rename it any time with "New Exam" below.</p>
+      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. The class teacher sets up their own subjects for their class after logging in. They'll receive an email with a secure link to set their own password. Once created, use the class's <b>New Exam</b> button below to name its first exam.</p>
       <div class="grid3">
         <div class="field"><label>Class Name</label><input type="text" id="t_class" placeholder="e.g. Grade 10 - A"></div>
         <div class="field"><label>Teacher's Name</label><input type="text" id="t_name" placeholder="e.g. Mrs. K. Selvi"></div>
@@ -226,16 +224,12 @@ function renderTopBar(){
 function fillSetupForm(){
   document.getElementById('s_name').value = school.name||"";
   document.getElementById('s_addr').value = school.addr||"";
-  document.getElementById('s_year').value = school.year||"";
-  document.getElementById('s_exam').value = school.exam||"";
   document.getElementById('s_principal').value = school.principal||"";
   if(school.logo) document.getElementById('logoPreviewWrap').innerHTML = `<img src="${school.logo}">`;
 }
 document.getElementById('btnSaveSetup').addEventListener('click', async ()=>{
   school.name = document.getElementById('s_name').value.trim();
   school.addr = document.getElementById('s_addr').value.trim();
-  school.year = document.getElementById('s_year').value.trim();
-  school.exam = document.getElementById('s_exam').value.trim();
   school.principal = document.getElementById('s_principal').value.trim();
   await setDoc(doc(db,'meta','school'), school);
   const note = document.getElementById('setupSavedNote');
@@ -276,7 +270,7 @@ document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>
     const classRef = await addDoc(collection(db,'classes'), {
       className, teacherUid:newUid, teacherEmail:email, teacherName,
       students: [], subjects: [], submitted:false, submittedAt:null,
-      examTitle: school.exam || '', examYear: school.year || ''
+      examTitle: '', examYear: ''
     });
     await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id});
 
@@ -377,14 +371,11 @@ function renderClassList(){
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
       if(!cls) return;
-      const defaultTitle = cls.examTitle || school.exam || '';
-      const defaultYear = cls.examYear || school.year || '';
-      const newTitle = prompt(`Exam title for "${cls.className}":`, defaultTitle);
+      const defaultTitle = cls.examTitle || '';
+      const newTitle = prompt(`Exam name for "${cls.className}" (e.g. "Second Term Examination · 2026"):`, defaultTitle);
       if(newTitle===null) return;
-      const newYear = prompt(`Academic year for "${cls.className}":`, defaultYear);
-      if(newYear===null) return;
-      if(!confirm(`Archive "${cls.className}"'s current results into Exam History, and start "${newTitle.trim()||'(untitled exam)'}"${newYear.trim()?(' · '+newYear.trim()):''} as a fresh blank marks sheet for ${cls.teacherName}?\n\nTheir login stays exactly the same — no new account or email needed.`)) return;
-      await startNewExamForClass(cls, newTitle.trim(), newYear.trim());
+      if(!confirm(`Archive "${cls.className}"'s current results into Exam History, and start "${newTitle.trim()||'(untitled exam)'}" as a fresh blank marks sheet for ${cls.teacherName}?\n\nTheir login stays exactly the same — no new account or email needed.`)) return;
+      await startNewExamForClass(cls, newTitle.trim());
       alert("Done — the old results are saved under Exam History, and a fresh sheet is ready for this class.");
     });
   });
@@ -416,16 +407,17 @@ function renderClassList(){
 }
 
 /* ===== START NEW EXAM (per class — archives current data, keeps the same teacher login) =====
-   newExamTitle / newExamYear are the name/year of the exam this class is about to START.
-   The exam being archived into history is whatever the class's *previous* examTitle/examYear was. */
-async function startNewExamForClass(cls, newExamTitle, newExamYear){
+   newExamTitle is the name of the exam this class is about to START (e.g. "Second Term
+   Examination · 2026" — the year can simply be typed as part of the name).
+   The exam being archived into history is whatever the class's *previous* examTitle was. */
+async function startNewExamForClass(cls, newExamTitle){
   await addDoc(collection(db,'examHistory'), {
     classId: cls.id,
     className: cls.className,
     teacherName: cls.teacherName,
     teacherEmail: cls.teacherEmail,
-    examTitle: cls.examTitle || school.exam || '',
-    examYear: cls.examYear || school.year || '',
+    examTitle: cls.examTitle || '',
+    examYear: cls.examYear || '',
     subjects: cls.subjects || [],
     students: cls.students || [],
     submitted: !!cls.submitted,
@@ -434,7 +426,7 @@ async function startNewExamForClass(cls, newExamTitle, newExamYear){
   });
   await updateDoc(doc(db,'classes',cls.id), {
     subjects: [], students: [], submitted:false, submittedAt:null, editRequested:false, editRequestedAt:null,
-    examTitle: newExamTitle || '', examYear: newExamYear || ''
+    examTitle: newExamTitle || '', examYear: ''
   });
 }
 
@@ -444,15 +436,13 @@ document.getElementById('btnNewExamSelected').addEventListener('click', async ()
   if(selectedIds.length===0) return alert("Please tick the checkbox next to the class(es) you want first.");
   const selectedClasses = classes.filter(c=>selectedIds.includes(c.id));
   const names = selectedClasses.map(c=>c.className).join(', ');
-  const newTitle = prompt(`Exam title for the selected class(es) — ${names}:`, school.exam || '');
+  const newTitle = prompt(`Exam name for the selected class(es) — ${names} (e.g. "Second Term Examination · 2026"):`, '');
   if(newTitle===null) return;
-  const newYear = prompt(`Academic year for the selected class(es):`, school.year || '');
-  if(newYear===null) return;
-  if(!confirm(`Archive current results for ${selectedClasses.length} class(es) (${names}) into Exam History, and start "${newTitle.trim()||'(untitled exam)'}"${newYear.trim()?(' · '+newYear.trim()):''} as a fresh sheet for each? Every other class is left untouched. Everyone's login stays exactly the same.`)) return;
+  if(!confirm(`Archive current results for ${selectedClasses.length} class(es) (${names}) into Exam History, and start "${newTitle.trim()||'(untitled exam)'}" as a fresh sheet for each? Every other class is left untouched. Everyone's login stays exactly the same.`)) return;
   const btn = document.getElementById('btnNewExamSelected');
   btn.disabled = true; btn.textContent = "Working…";
   for(const cls of selectedClasses){
-    await startNewExamForClass(cls, newTitle.trim(), newYear.trim());
+    await startNewExamForClass(cls, newTitle.trim());
   }
   btn.disabled = false; btn.textContent = "Start New Exam for Selected Classes";
   document.getElementById('selectAllClasses').checked = false;
@@ -587,7 +577,7 @@ function renderClassView(classId){
 
   // Use this class's own exam title/year for its report headers, falling back
   // to the school-wide defaults only if the class doesn't have its own set yet.
-  const examSchool = { ...school, exam: cls.examTitle || school.exam, year: cls.examYear || school.year };
+  const examSchool = { ...school, exam: cls.examTitle || '', year: cls.examYear || '' };
 
   document.getElementById('viewSheetToolbar').style.display = students.length? 'flex':'none';
   document.getElementById('classSheetHolder').innerHTML = students.length
@@ -654,7 +644,7 @@ document.getElementById('btnPdfOne').addEventListener('click', ()=>{
 document.getElementById('btnPdfAll').addEventListener('click', ()=>{
   const rows = window._currentViewRows, highest = window._currentViewHighest, cls = window._currentViewClass, subjects = window._currentViewSubjects || [];
   if(!rows || rows.length===0) return;
-  const examSchool = { ...school, exam: cls.examTitle || school.exam, year: cls.examYear || school.year };
+  const examSchool = { ...school, exam: cls.examTitle || '', year: cls.examYear || '' };
   const wrapper = document.createElement('div');
   wrapper.innerHTML = rows.map(r=>individualReportHtml(examSchool, subjects, r, highest, cls.className)).join('<div style="page-break-after:always;"></div>');
   document.body.appendChild(wrapper);

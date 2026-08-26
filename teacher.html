@@ -155,20 +155,19 @@ function initData(){
   });
 }
 
-// This class's own exam title/year (set by the Principal via "New Exam" /
-// "Start New Exam for Selected Classes"), falling back to the school-wide
-// default only if this class hasn't been individually scheduled yet.
+// This class's own exam name, set by the Principal via "New Exam" /
+// "Start New Exam for Selected Classes".
 function currentExamSchool(){
   return {
     ...school,
-    exam: classData.examTitle || school.exam,
-    year: classData.examYear || school.year
+    exam: classData.examTitle || '',
+    year: classData.examYear || ''
   };
 }
 
 function renderCurrentExamLabel(){
-  const title = classData.examTitle || school.exam || "";
-  const year = classData.examYear || school.year || "";
+  const title = classData.examTitle || "";
+  const year = classData.examYear || "";
   document.getElementById('currentExamLabel').textContent = title
     ? (title + (year ? (" · " + year) : ""))
     : "Not scheduled yet — please contact the Principal.";
