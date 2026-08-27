@@ -478,6 +478,7 @@ function renderExamHistory(){
     <td>
       <button class="btn small outline" data-id="${h.id}" data-action="viewhistory">View</button>
       <button class="btn small gold" data-id="${h.id}" data-action="restorehistory">Restore</button>
+      <button class="btn small danger" data-id="${h.id}" data-action="deletehistory">Delete</button>
     </td>
   </tr>`).join("");
   body.querySelectorAll('[data-action="viewhistory"]').forEach(b=>{
@@ -487,6 +488,16 @@ function renderExamHistory(){
     b.addEventListener('click', ()=>{
       const h = examHistory.find(x=>x.id===b.dataset.id);
       if(h) restoreExamHistory(h);
+    });
+  });
+  body.querySelectorAll('[data-action="deletehistory"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const h = examHistory.find(x=>x.id===b.dataset.id);
+      if(!h) return;
+      if(!confirm(`Permanently delete the archived "${h.className}" — ${h.examTitle||'exam'}${h.examYear?(' · '+h.examYear):''} record? This cannot be undone.`)) return;
+      if(!confirm("Please confirm once more — this removes it forever. Continue?")) return;
+      await deleteDoc(doc(db,'examHistory',h.id));
+      document.getElementById('historyViewHolder').innerHTML = "";
     });
   });
 }
