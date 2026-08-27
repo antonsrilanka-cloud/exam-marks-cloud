@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Dashboard — Term Examination Marks Report System</title>
 <link rel="stylesheet" href="shared.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -36,11 +34,13 @@
   <div class="panel active" id="panel-setup">
     <div class="card">
       <h2>School & Examination Details</h2>
-      <p class="hint">The school name, address and logo appear as the header on every marksheet and report card across all classes.</p>
+      <p class="hint">These appear as the header on every marksheet and report card across all classes.</p>
       <div class="grid2">
         <div>
           <div class="field"><label>School Name</label><input type="text" id="s_name" placeholder="e.g. St. Mary's Tamil Maha Vidyalaya"></div>
           <div class="field"><label>School Address</label><textarea id="s_addr" placeholder="e.g. Bambalapitiya, Colombo"></textarea></div>
+          <div class="field"><label>Academic Year</label><input type="text" id="s_year" placeholder="e.g. 2026"></div>
+          <div class="field"><label>Examination Title</label><input type="text" id="s_exam" placeholder="e.g. Second Term Examination"></div>
         </div>
         <div>
           <div class="field">
@@ -53,7 +53,6 @@
           <div class="field"><label>Principal Name (for signature line)</label><input type="text" id="s_principal" placeholder="e.g. Mr. R. Antonraj"></div>
         </div>
       </div>
-      <p class="hint">Each class names and schedules its own exam independently — see <b>Class Teachers</b> below.</p>
       <div class="toolbar"><button class="btn" id="btnSaveSetup">Save School Setup</button><span class="meta-note" id="setupSavedNote"></span></div>
     </div>
   </div>
@@ -62,7 +61,7 @@
   <div class="panel" id="panel-teachers">
     <div class="card">
       <h2>Add a Class Teacher</h2>
-      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. The class teacher sets up their own subjects for their class after logging in. They'll receive an email with a secure link to set their own password. Once created, use the class's <b>New Exam</b> button below to name its first exam.</p>
+      <p class="hint">Creates a login for one class teacher and a blank marks sheet for their class. The class teacher sets up their own subjects for their class after logging in. They'll receive an email with a secure link to set their own password.</p>
       <div class="grid3">
         <div class="field"><label>Class Name</label><input type="text" id="t_class" placeholder="e.g. Grade 10 - A"></div>
         <div class="field"><label>Teacher's Name</label><input type="text" id="t_name" placeholder="e.g. Mrs. K. Selvi"></div>
@@ -77,16 +76,13 @@
     <div class="card">
       <h2>Class Teachers & Submission Status</h2>
       <p class="hint">Share this link with every class teacher: <b id="shareLink">—</b> <button class="btn small outline" id="btnCopyLink">Copy Link</button></p>
-      <p class="hint">Each class runs its own exam, shown in the <b>Current Exam</b> column below. Tick the box next to the classes you want — for example just a few pilot classes — and click <b>Start New Exam for Selected Classes</b> to name and schedule a new exam for only those classes; every other class is left completely untouched. Or use the <b>New Exam</b> button on a single row to do the same for just that one class. Either way it archives that class's current results into <b>Exam History</b> and gives it a fresh blank sheet, using the exact same teacher login — no new account or password email needed.</p>
+      <p class="hint">When it's time for a new exam, use <b>New Exam</b> on a class instead of re-adding the teacher — it archives their current results into <b>Exam History</b> and gives them a fresh blank sheet, using the exact same login. No new account or password email needed.</p>
       <div class="toolbar" style="margin-bottom:14px;">
-        <button class="btn outline" id="btnNewExamSelected">Start New Exam for Selected Classes</button>
+        <button class="btn outline" id="btnNewExamAll">Start New Exam for All Classes</button>
       </div>
       <table class="classlist" id="classListTable">
-        <thead><tr>
-          <th><input type="checkbox" id="selectAllClasses" title="Select all classes"></th>
-          <th>Class</th><th>Teacher</th><th>Email</th><th>Current Exam</th><th>Status</th><th>Students</th><th></th>
-        </tr></thead>
-        <tbody id="classListBody"><tr><td colspan="8" class="meta-note">Loading…</td></tr></tbody>
+        <thead><tr><th>Class</th><th>Teacher</th><th>Email</th><th>Status</th><th>Students</th><th></th></tr></thead>
+        <tbody id="classListBody"><tr><td colspan="6" class="meta-note">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -152,7 +148,7 @@ import { firebaseConfig } from "./firebase-config.js";
 import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
-let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested, examTitle, examYear}]
+let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested}]
 let examHistory = []; // [{id, classId, className, teacherName, examTitle, examYear, subjects, students, submitted, submittedAt, archivedAt}]
 let currentUser = null;
 
@@ -224,12 +220,16 @@ function renderTopBar(){
 function fillSetupForm(){
   document.getElementById('s_name').value = school.name||"";
   document.getElementById('s_addr').value = school.addr||"";
+  document.getElementById('s_year').value = school.year||"";
+  document.getElementById('s_exam').value = school.exam||"";
   document.getElementById('s_principal').value = school.principal||"";
   if(school.logo) document.getElementById('logoPreviewWrap').innerHTML = `<img src="${school.logo}">`;
 }
 document.getElementById('btnSaveSetup').addEventListener('click', async ()=>{
   school.name = document.getElementById('s_name').value.trim();
   school.addr = document.getElementById('s_addr').value.trim();
+  school.year = document.getElementById('s_year').value.trim();
+  school.exam = document.getElementById('s_exam').value.trim();
   school.principal = document.getElementById('s_principal').value.trim();
   await setDoc(doc(db,'meta','school'), school);
   const note = document.getElementById('setupSavedNote');
@@ -269,8 +269,7 @@ document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>
 
     const classRef = await addDoc(collection(db,'classes'), {
       className, teacherUid:newUid, teacherEmail:email, teacherName,
-      students: [], subjects: [], submitted:false, submittedAt:null,
-      examTitle: '', examYear: ''
+      students: [], subjects: [], submitted:false, submittedAt:null
     });
     await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id});
 
@@ -298,15 +297,10 @@ document.getElementById('btnCopyLink').addEventListener('click', ()=>{
   b.textContent = "Copied!"; setTimeout(()=>b.textContent=old, 1400);
 });
 
-/* ===== SELECT-ALL CHECKBOX (for scheduling a new exam on selected classes) ===== */
-document.getElementById('selectAllClasses').addEventListener('change', (e)=>{
-  document.querySelectorAll('.examSelectCb').forEach(cb=> cb.checked = e.target.checked);
-});
-
 /* ===== CLASS LIST ===== */
 function renderClassList(){
   const body = document.getElementById('classListBody');
-  if(classes.length===0){ body.innerHTML = `<tr><td colspan="8" class="meta-note">No classes yet — add a class teacher above.</td></tr>`; return; }
+  if(classes.length===0){ body.innerHTML = `<tr><td colspan="6" class="meta-note">No classes yet — add a class teacher above.</td></tr>`; return; }
   body.innerHTML = classes.map(c=>{
     const count = (c.students||[]).length;
     let pill = count===0 ? `<span class="status-pill empty">No data</span>`
@@ -315,23 +309,19 @@ function renderClassList(){
     if(c.editRequested){
       pill += ` <span class="status-pill" style="background:#fdeaea;color:#b3432d;">⚠ Edit Requested</span>`;
     }
-    const examLabel = c.examTitle
-      ? `${esc(c.examTitle)}${c.examYear ? (' · '+esc(c.examYear)) : ''}`
-      : `<span class="meta-note">Not scheduled</span>`;
     return `<tr${c.editRequested ? ' style="background:#fff7f0;"' : ''}>
-      <td><input type="checkbox" class="examSelectCb" data-id="${c.id}"></td>
       <td><b>${esc(c.className)}</b></td>
       <td>${esc(c.teacherName)}</td>
       <td>${esc(c.teacherEmail)}</td>
-      <td>${examLabel}</td>
       <td>${pill}</td>
       <td>${count}</td>
       <td style="white-space:nowrap;">
         <button class="btn small outline" data-id="${c.id}" data-action="view">View</button>
         <button class="btn small outline" data-id="${c.id}" data-action="edit">Edit</button>
+        <button class="btn small outline" data-id="${c.id}" data-action="editemail">Edit Email</button>
         ${c.editRequested ? `<button class="btn small gold" data-id="${c.id}" data-action="allowedit">Allow Edit</button>` : ''}
         <button class="btn small outline" data-id="${c.id}" data-action="newexam">New Exam</button>
-              <button class="btn small outline" data-id="${c.id}" data-action="resetpw">Reset Password</button>
+        <button class="btn small outline" data-id="${c.id}" data-action="resetpw">Reset Password</button>
         <button class="btn small danger" data-id="${c.id}" data-action="delete">Delete</button>
       </td>
     </tr>`;
@@ -358,7 +348,13 @@ function renderClassList(){
       if(cls.teacherUid){
         await updateDoc(doc(db,'users',cls.teacherUid), {name:newTeacherName.trim()});
       }
-      alert("Updated. Note: the teacher's sign-in email can't be changed here — to change an email, delete this teacher below and create a new account with the correct email.");
+      alert("Updated. To correct their sign-in email instead, use the separate \"Edit Email\" button.");
+    });
+  });
+  body.querySelectorAll('[data-action="editemail"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const cls = classes.find(c=>c.id===b.dataset.id);
+      if(cls) changeTeacherEmail(cls);
     });
   });
   body.querySelectorAll('[data-action="allowedit"]').forEach(b=>{
@@ -371,15 +367,12 @@ function renderClassList(){
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
       if(!cls) return;
-      const defaultTitle = cls.examTitle || '';
-      const newTitle = prompt(`Exam name for "${cls.className}" (e.g. "Second Term Examination · 2026"):`, defaultTitle);
-      if(newTitle===null) return;
-      if(!confirm(`Archive "${cls.className}"'s current results into Exam History, and start "${newTitle.trim()||'(untitled exam)'}" as a fresh blank marks sheet for ${cls.teacherName}?\n\nTheir login stays exactly the same — no new account or email needed.`)) return;
-      await startNewExamForClass(cls, newTitle.trim());
+      if(!confirm(`Archive "${cls.className}"'s current results (${school.exam||'this exam'}${school.year?(' · '+school.year):''}) into Exam History, and start a fresh blank marks sheet for ${cls.teacherName}?\n\nTheir login stays exactly the same — no new account or email needed.`)) return;
+      await startNewExamForClass(cls);
       alert("Done — the old results are saved under Exam History, and a fresh sheet is ready for this class.");
     });
   });
-    body.querySelectorAll('[data-action="resetpw"]').forEach(b=>{
+  body.querySelectorAll('[data-action="resetpw"]').forEach(b=>{
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
       if(!cls) return;
@@ -391,7 +384,8 @@ function renderClassList(){
         alert("Could not send the reset email. Please check the address and try again.");
       }
     });
-  });body.querySelectorAll('[data-action="delete"]').forEach(b=>{
+  });
+  body.querySelectorAll('[data-action="delete"]').forEach(b=>{
     b.addEventListener('click', async ()=>{
       const cls = classes.find(c=>c.id===b.dataset.id);
       if(!cls) return;
@@ -406,18 +400,47 @@ function renderClassList(){
   });
 }
 
-/* ===== START NEW EXAM (per class — archives current data, keeps the same teacher login) =====
-   newExamTitle is the name of the exam this class is about to START (e.g. "Second Term
-   Examination · 2026" — the year can simply be typed as part of the name).
-   The exam being archived into history is whatever the class's *previous* examTitle was. */
-async function startNewExamForClass(cls, newExamTitle){
+/* ===== EDIT TEACHER EMAIL (creates a new login, moves the class over, retires the old email) ===== */
+async function changeTeacherEmail(cls){
+  const newEmail = prompt(`Correct email for ${cls.teacherName} (current: ${cls.teacherEmail}):`, cls.teacherEmail || "");
+  if(newEmail===null) return;
+  const trimmed = newEmail.trim();
+  if(!trimmed) return;
+  if(trimmed===cls.teacherEmail){ alert("That's the same email already on file."); return; }
+  if(!confirm(`This creates a brand-new login for ${trimmed} and moves "${cls.className}" over to it — all their marks, students and subjects stay exactly as they are.\n\nTheir OLD email (${cls.teacherEmail}) will stop working in this system. They'll get an email at ${trimmed} to set a new password.\n\nContinue?`)) return;
+
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryAppForEmailChange_"+Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const tempPassword = Math.random().toString(36).slice(-10) + "Aa1!";
+  try{
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, trimmed, tempPassword);
+    const newUid = cred.user.uid;
+    await sendPasswordResetEmail(secondaryAuth, trimmed);
+    await signOut(secondaryAuth);
+
+    await updateDoc(doc(db,'classes',cls.id), {teacherUid:newUid, teacherEmail:trimmed});
+    await setDoc(doc(db,'users',newUid), {role:'teacher', name:cls.teacherName, email:trimmed, classId:cls.id});
+    if(cls.teacherUid){
+      await deleteDoc(doc(db,'users',cls.teacherUid));
+    }
+    alert(`Email updated. A password-setup email has been sent to ${trimmed}. Their old email (${cls.teacherEmail}) no longer works in this system — you can also remove that old login from Firebase Authentication → Users if you'd like to fully clean it up (this is optional, not required).`);
+  }catch(err){
+    let text = "Could not create the new login.";
+    if(err.code==='auth/email-already-in-use') text = "That email is already registered to someone else in this system.";
+    if(err.code==='auth/invalid-email') text = "Please enter a valid email address.";
+    alert(text);
+  }
+}
+
+/* ===== START NEW EXAM (archives current data, keeps the same teacher login) ===== */
+async function startNewExamForClass(cls){
   await addDoc(collection(db,'examHistory'), {
     classId: cls.id,
     className: cls.className,
     teacherName: cls.teacherName,
     teacherEmail: cls.teacherEmail,
-    examTitle: cls.examTitle || '',
-    examYear: cls.examYear || '',
+    examTitle: school.exam || '',
+    examYear: school.year || '',
     subjects: cls.subjects || [],
     students: cls.students || [],
     submitted: !!cls.submitted,
@@ -425,28 +448,19 @@ async function startNewExamForClass(cls, newExamTitle){
     archivedAt: serverTimestamp()
   });
   await updateDoc(doc(db,'classes',cls.id), {
-    subjects: [], students: [], submitted:false, submittedAt:null, editRequested:false, editRequestedAt:null,
-    examTitle: newExamTitle || '', examYear: ''
+    subjects: [], students: [], submitted:false, submittedAt:null, editRequested:false, editRequestedAt:null
   });
 }
-
-/* ===== START NEW EXAM FOR SELECTED (pilot) CLASSES ONLY ===== */
-document.getElementById('btnNewExamSelected').addEventListener('click', async ()=>{
-  const selectedIds = Array.from(document.querySelectorAll('.examSelectCb:checked')).map(cb=>cb.dataset.id);
-  if(selectedIds.length===0) return alert("Please tick the checkbox next to the class(es) you want first.");
-  const selectedClasses = classes.filter(c=>selectedIds.includes(c.id));
-  const names = selectedClasses.map(c=>c.className).join(', ');
-  const newTitle = prompt(`Exam name for the selected class(es) — ${names} (e.g. "Second Term Examination · 2026"):`, '');
-  if(newTitle===null) return;
-  if(!confirm(`Archive current results for ${selectedClasses.length} class(es) (${names}) into Exam History, and start "${newTitle.trim()||'(untitled exam)'}" as a fresh sheet for each? Every other class is left untouched. Everyone's login stays exactly the same.`)) return;
-  const btn = document.getElementById('btnNewExamSelected');
+document.getElementById('btnNewExamAll').addEventListener('click', async ()=>{
+  if(classes.length===0) return alert("No classes yet.");
+  if(!confirm(`Archive ALL ${classes.length} classes' current results into Exam History, and start fresh blank sheets for every class? Everyone's login stays exactly the same.`)) return;
+  const btn = document.getElementById('btnNewExamAll');
   btn.disabled = true; btn.textContent = "Working…";
-  for(const cls of selectedClasses){
-    await startNewExamForClass(cls, newTitle.trim());
+  for(const cls of classes){
+    await startNewExamForClass(cls);
   }
-  btn.disabled = false; btn.textContent = "Start New Exam for Selected Classes";
-  document.getElementById('selectAllClasses').checked = false;
-  alert(`"${newTitle.trim()||'(untitled exam)'}" started for ${selectedClasses.length} class(es). Don't forget the class teacher(s) may need to set up subjects again for the new exam.`);
+  btn.disabled = false; btn.textContent = "Start New Exam for All Classes";
+  alert("New exam started for all classes. Don't forget to update the Examination Title / Year in School Setup for the new term.");
 });
 
 /* ===== EXAM HISTORY ===== */
@@ -461,23 +475,50 @@ function renderExamHistory(){
     <td>${esc(h.examTitle)||'—'}${h.examYear?(' · '+esc(h.examYear)):''}</td>
     <td>${esc(h.teacherName)}</td>
     <td>${(h.students||[]).length}</td>
-    <td style="white-space:nowrap;">
+    <td>
       <button class="btn small outline" data-id="${h.id}" data-action="viewhistory">View</button>
-      <button class="btn small danger" data-id="${h.id}" data-action="deletehistory">Delete</button>
+      <button class="btn small gold" data-id="${h.id}" data-action="restorehistory">Restore</button>
     </td>
   </tr>`).join("");
   body.querySelectorAll('[data-action="viewhistory"]').forEach(b=>{
     b.addEventListener('click', ()=> renderHistoryView(b.dataset.id));
   });
-  body.querySelectorAll('[data-action="deletehistory"]').forEach(b=>{
-    b.addEventListener('click', async ()=>{
+  body.querySelectorAll('[data-action="restorehistory"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
       const h = examHistory.find(x=>x.id===b.dataset.id);
-      if(!h) return;
-      if(!confirm(`Permanently delete this archived exam — "${h.examTitle||'(untitled exam)'}"${h.examYear?(' · '+h.examYear):''} for "${h.className}" (${(h.students||[]).length} students)?\n\nThis only removes this one archived record from Exam History. It does NOT affect the class's current live marks sheet, and cannot be undone.`)) return;
-      await deleteDoc(doc(db,'examHistory',h.id));
-      document.getElementById('historyViewHolder').innerHTML = "";
+      if(h) restoreExamHistory(h);
     });
   });
+}
+
+/* ===== RESTORE FROM HISTORY (undo a "New Exam" that was started by mistake) ===== */
+async function restoreExamHistory(h){
+  const cls = classes.find(c=>c.id===h.classId);
+  if(!cls){
+    alert("This class no longer exists — it may have been deleted, so it can't be restored.");
+    return;
+  }
+  if(cls.submitted){
+    alert(`"${cls.className}" already has submitted results for the current exam. Restoring this archive would overwrite that — if you still want to proceed, first reopen or resolve the current submission.`);
+    return;
+  }
+  const hasCurrentWork = (cls.students||[]).length > 0;
+  const warnExtra = hasCurrentWork
+    ? `\n\nNote: this class already has ${cls.students.length} student(s) entered for the new exam — restoring will overwrite and remove that in-progress data.`
+    : '';
+  if(!confirm(`Restore "${h.className}"'s archived results from ${h.examTitle || 'that exam'}${h.examYear ? (' · '+h.examYear) : ''} back as the live sheet for ${cls.teacherName}?${warnExtra}\n\nRemember to also update the Examination Title / Year in School Setup back if needed.`)) return;
+
+  await updateDoc(doc(db,'classes',cls.id), {
+    subjects: h.subjects || [],
+    students: h.students || [],
+    submitted: !!h.submitted,
+    submittedAt: h.submittedAt || null,
+    editRequested: false,
+    editRequestedAt: null
+  });
+  await deleteDoc(doc(db,'examHistory',h.id));
+  document.getElementById('historyViewHolder').innerHTML = "";
+  alert("Restored — this class's live sheet now shows the archived data again, and the archive entry has been removed since it's no longer a separate history record.");
 }
 
 function renderHistoryView(historyId){
@@ -491,7 +532,6 @@ function renderHistoryView(historyId){
     holder.innerHTML = `<div class="card empty-state"><div class="big">📋</div>No student data was saved in this archive.</div>`;
     return;
   }
-  const {highest, rows} = computeStats(subjects, students);
   holder.innerHTML = `
     <div class="preview-toolbar no-print">
       <b>${esc(h.className)} — ${esc(h.examTitle)||'Archived Exam'}${h.examYear?(' · '+esc(h.examYear)):''}</b>
@@ -499,64 +539,16 @@ function renderHistoryView(historyId){
       <button class="btn outline" id="btnPrintHistory">🖨 Print</button>
       <button class="btn gold" id="btnPdfHistory">⬇ Download PDF</button>
     </div>
-    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>
-
-    <div class="preview-toolbar no-print" style="margin-top:20px;">
-      <b>Individual Report</b>
-      <select id="historyStudentSelect"></select>
-      <span class="spacer"></span>
-      <button class="btn outline" id="btnPrintHistoryOne">🖨 Print</button>
-      <button class="btn gold" id="btnPdfHistoryOne">⬇ Download PDF</button>
-      <button class="btn outline" id="btnPdfHistoryAll">⬇ Download All (PDF)</button>
-    </div>
-    <div id="historyIndividualHolder"></div>`;
-
+    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>`;
   document.getElementById('btnPrintHistory').addEventListener('click', ()=>{
     setPageSize('landscape');
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
     document.getElementById('panel-history').classList.add('print-active');
-    document.getElementById('historyIndividualHolder').style.display='none';
     window.print();
-    document.getElementById('historyIndividualHolder').style.display='';
   });
   document.getElementById('btnPdfHistory').addEventListener('click', ()=>{
     const el = document.getElementById('historySheetPrintArea');
     downloadPdf(el, `Archived-${(h.className||'class').replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`, 'landscape');
-  });
-
-  const sel = document.getElementById('historyStudentSelect');
-  sel.innerHTML = rows.map(r=>`<option value="${r.id}">${esc(r.name)||"(unnamed)"}</option>`).join("");
-
-  function showOne(id){
-    const row = rows.find(r=>r.id===id) || rows[0];
-    if(!row) return;
-    document.getElementById('historyIndividualHolder').innerHTML = `<div id="historyIndividualPrintArea">${individualReportHtml(histSchool, subjects, row, highest, h.className)}</div>`;
-  }
-  showOne(sel.value);
-  sel.onchange = (e)=> showOne(e.target.value);
-
-  document.getElementById('btnPrintHistoryOne').addEventListener('click', ()=>{
-    setPageSize('portrait');
-    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
-    document.getElementById('panel-history').classList.add('print-active');
-    document.getElementById('historySheetPrintArea').style.display='none';
-    window.print();
-    document.getElementById('historySheetPrintArea').style.display='';
-  });
-  document.getElementById('btnPdfHistoryOne').addEventListener('click', ()=>{
-    const el = document.getElementById('historyIndividualPrintArea');
-    if(!el) return;
-    const name = sel.options[sel.selectedIndex]?.text || 'student';
-    downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`, 'portrait');
-  });
-  document.getElementById('btnPdfHistoryAll').addEventListener('click', ()=>{
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = rows.map(r=>individualReportHtml(histSchool, subjects, r, highest, h.className)).join('<div style="page-break-after:always;"></div>');
-    document.body.appendChild(wrapper);
-    const opt = { margin:0, filename:`All-Reports-${(h.className||'class').replace(/\s+/g,'_')}-${(h.examTitle||'exam').replace(/\s+/g,'_')}.pdf`,
-      image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
-      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}, pagebreak:{mode:['css']} };
-    window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
   });
 }
 
@@ -587,13 +579,9 @@ function renderClassView(classId){
   const students = cls.students || [];
   const subjects = cls.subjects || [];
 
-  // Use this class's own exam title/year for its report headers, falling back
-  // to the school-wide defaults only if the class doesn't have its own set yet.
-  const examSchool = { ...school, exam: cls.examTitle || '', year: cls.examYear || '' };
-
   document.getElementById('viewSheetToolbar').style.display = students.length? 'flex':'none';
   document.getElementById('classSheetHolder').innerHTML = students.length
-    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(examSchool, subjects, students, cls.className)}</div>`
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, cls.className)}</div>`
     : subjects.length===0
       ? `<div class="card empty-state"><div class="big">📋</div>This class teacher hasn't set up subjects yet.</div>`
       : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
@@ -606,7 +594,7 @@ function renderClassView(classId){
   function showOne(id){
     const row = rows.find(r=>r.id===id) || rows[0];
     if(!row){ document.getElementById('individualSheetHolder').innerHTML=""; return; }
-    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(examSchool, subjects, row, highest, cls.className)}</div>`;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, highest, cls.className)}</div>`;
   }
   if(rows.length) showOne(sel.value);
   sel.onchange = (e)=> showOne(e.target.value);
@@ -656,9 +644,8 @@ document.getElementById('btnPdfOne').addEventListener('click', ()=>{
 document.getElementById('btnPdfAll').addEventListener('click', ()=>{
   const rows = window._currentViewRows, highest = window._currentViewHighest, cls = window._currentViewClass, subjects = window._currentViewSubjects || [];
   if(!rows || rows.length===0) return;
-  const examSchool = { ...school, exam: cls.examTitle || '', year: cls.examYear || '' };
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = rows.map(r=>individualReportHtml(examSchool, subjects, r, highest, cls.className)).join('<div style="page-break-after:always;"></div>');
+  wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, cls.className)).join('<div style="page-break-after:always;"></div>');
   document.body.appendChild(wrapper);
   const opt = { margin:0, filename:`All-Reports-${(cls.className||'class').replace(/\s+/g,'_')}.pdf`,
     image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
