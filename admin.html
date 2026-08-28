@@ -16,6 +16,7 @@
     <span class="sub">Admin Dashboard</span>
   </div>
   <div class="spacer"></div>
+  <button class="ghost no-print" id="btnSuperAdminLink" style="display:none;">Super Admin Console</button>
   <span class="role-badge">Principal</span>
   <span class="who" id="whoAmI"></span>
   <button class="ghost" id="btnLogout">Sign Out</button>
@@ -29,6 +30,8 @@
 </div>
 
 <div class="wrap">
+
+  <div id="migrationBannerHolder"></div>
 
   <!-- ============ PANEL: SCHOOL SETUP ============ -->
   <div class="panel active" id="panel-setup">
@@ -143,14 +146,15 @@
 import { app, auth, db } from "./firebase-init.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
-let classes = []; // [{id, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested}]
-let examHistory = []; // [{id, classId, className, teacherName, examTitle, examYear, subjects, students, submitted, submittedAt, archivedAt}]
+let classes = []; // [{id, schoolId, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested}]
+let examHistory = []; // [{id, schoolId, classId, className, teacherName, examTitle, examYear, subjects, students, submitted, submittedAt, archivedAt}]
 let currentUser = null;
+let schoolId = null;
 
 document.getElementById('shareLink').textContent = window.location.origin + window.location.pathname.replace('admin.html','index.html');
 document.getElementById('shareLinkModal').value = window.location.origin + window.location.pathname.replace('admin.html','index.html');
@@ -167,23 +171,91 @@ onAuthStateChanged(auth, async (user)=>{
   }
   currentUser = {uid:user.uid, ...snap.data()};
   document.getElementById('whoAmI').textContent = currentUser.name || user.email;
+  if(currentUser.isSuperAdmin){
+    const btn = document.getElementById('btnSuperAdminLink');
+    btn.style.display = 'inline-block';
+    btn.addEventListener('click', ()=> window.location.href = 'superadmin.html');
+  }
+  if(!currentUser.schoolId){
+    showMigrationPrompt();
+    return;
+  }
+  schoolId = currentUser.schoolId;
   initData();
 });
 document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth).then(()=>window.location.href='index.html'));
 
-/* ===== LIVE DATA ===== */
+/* ===== ONE-TIME UPGRADE: turns your existing single-school data into
+   "School #1" of the new multi-school system. Runs once, automatically
+   offered only to an admin account that doesn't have a schoolId yet. ===== */
+function showMigrationPrompt(){
+  document.getElementById('migrationBannerHolder').innerHTML = `
+    <div class="card">
+      <h2>Upgrade to Multi-School System</h2>
+      <p class="hint">This one-time step turns your existing school into "School #1" of the new system. Nothing is deleted — your classes, teachers, and marks all stay exactly as they are.</p>
+      <button class="btn gold" id="btnRunMigration">Upgrade Now</button>
+      <span class="meta-note" id="migrationNote"></span>
+    </div>`;
+  document.getElementById('btnRunMigration').addEventListener('click', runMigration);
+}
+async function runMigration(){
+  const btn = document.getElementById('btnRunMigration');
+  const note = document.getElementById('migrationNote');
+  btn.disabled = true; note.textContent = "Upgrading… please don't close this page.";
+  try{
+    const oldSchoolSnap = await getDoc(doc(db,'meta','school'));
+    const oldSchool = oldSchoolSnap.exists() ? oldSchoolSnap.data() : {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
+
+    const farFuture = new Date(); farFuture.setFullYear(farFuture.getFullYear()+100);
+    const newSchoolRef = await addDoc(collection(db,'schools'), {
+      ...oldSchool,
+      accessStart: serverTimestamp(),
+      accessEnd: farFuture,
+      createdAt: serverTimestamp()
+    });
+    const newSchoolId = newSchoolRef.id;
+
+    await updateDoc(doc(db,'users',currentUser.uid), {schoolId:newSchoolId});
+
+    const classesSnap = await getDocs(collection(db,'classes'));
+    for(const d of classesSnap.docs){
+      if(!d.data().schoolId){
+        await updateDoc(doc(db,'classes',d.id), {schoolId:newSchoolId});
+        const teacherUid = d.data().teacherUid;
+        if(teacherUid){
+          await updateDoc(doc(db,'users',teacherUid), {schoolId:newSchoolId}).catch(()=>{});
+        }
+      }
+    }
+    const historySnap = await getDocs(collection(db,'examHistory'));
+    for(const d of historySnap.docs){
+      if(!d.data().schoolId){
+        await updateDoc(doc(db,'examHistory',d.id), {schoolId:newSchoolId});
+      }
+    }
+
+    note.textContent = "Done! Reloading…";
+    setTimeout(()=> window.location.reload(), 1200);
+  }catch(err){
+    note.textContent = "";
+    alert("The upgrade hit a problem: " + err.message + "\n\nNothing was lost — it's safe to try again.");
+    btn.disabled = false;
+  }
+}
+
+/* ===== LIVE DATA (scoped to this admin's own school) ===== */
 function initData(){
-  onSnapshot(doc(db,'meta','school'), (snap)=>{
+  onSnapshot(doc(db,'schools',schoolId), (snap)=>{
     if(snap.exists()){ school = snap.data(); fillSetupForm(); renderTopBar(); }
   });
-  onSnapshot(collection(db,'classes'), (snapshot)=>{
+  onSnapshot(query(collection(db,'classes'), where('schoolId','==',schoolId)), (snapshot)=>{
     classes = [];
     snapshot.forEach(d=> classes.push({id:d.id, ...d.data()}));
     classes.sort((a,b)=> (a.className||"").localeCompare(b.className||""));
     renderClassList();
     populateClassSelectIfReady();
   });
-  onSnapshot(collection(db,'examHistory'), (snapshot)=>{
+  onSnapshot(query(collection(db,'examHistory'), where('schoolId','==',schoolId)), (snapshot)=>{
     examHistory = [];
     snapshot.forEach(d=>{
       const data = d.data();
@@ -231,7 +303,9 @@ document.getElementById('btnSaveSetup').addEventListener('click', async ()=>{
   school.year = document.getElementById('s_year').value.trim();
   school.exam = document.getElementById('s_exam').value.trim();
   school.principal = document.getElementById('s_principal').value.trim();
-  await setDoc(doc(db,'meta','school'), school);
+  await updateDoc(doc(db,'schools',schoolId), {
+    name: school.name, addr: school.addr, year: school.year, exam: school.exam, principal: school.principal
+  });
   const note = document.getElementById('setupSavedNote');
   note.textContent = "Saved ✓"; setTimeout(()=>note.textContent="",1800);
 });
@@ -241,7 +315,7 @@ document.getElementById('logoInput').addEventListener('change',(e)=>{
   reader.onload = async ()=>{
     school.logo = reader.result;
     document.getElementById('logoPreviewWrap').innerHTML = `<img src="${reader.result}">`;
-    await setDoc(doc(db,'meta','school'), school);
+    await updateDoc(doc(db,'schools',schoolId), {logo: reader.result});
   };
   reader.readAsDataURL(file);
 });
@@ -268,10 +342,10 @@ document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>
     await signOut(secondaryAuth);
 
     const classRef = await addDoc(collection(db,'classes'), {
-      className, teacherUid:newUid, teacherEmail:email, teacherName,
+      schoolId, className, teacherUid:newUid, teacherEmail:email, teacherName,
       students: [], subjects: [], submitted:false, submittedAt:null
     });
-    await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id});
+    await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id, schoolId});
 
     document.getElementById('t_class').value="";
     document.getElementById('t_name').value="";
@@ -419,7 +493,7 @@ async function changeTeacherEmail(cls){
     await signOut(secondaryAuth);
 
     await updateDoc(doc(db,'classes',cls.id), {teacherUid:newUid, teacherEmail:trimmed});
-    await setDoc(doc(db,'users',newUid), {role:'teacher', name:cls.teacherName, email:trimmed, classId:cls.id});
+    await setDoc(doc(db,'users',newUid), {role:'teacher', name:cls.teacherName, email:trimmed, classId:cls.id, schoolId});
     if(cls.teacherUid){
       await deleteDoc(doc(db,'users',cls.teacherUid));
     }
@@ -435,6 +509,7 @@ async function changeTeacherEmail(cls){
 /* ===== START NEW EXAM (archives current data, keeps the same teacher login) ===== */
 async function startNewExamForClass(cls){
   await addDoc(collection(db,'examHistory'), {
+    schoolId,
     classId: cls.id,
     className: cls.className,
     teacherName: cls.teacherName,
