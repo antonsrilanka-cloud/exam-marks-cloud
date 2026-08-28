@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Class Teacher — Term Examination Marks Report System</title>
 <link rel="stylesheet" href="shared.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -37,7 +35,6 @@
   <div class="panel active" id="panel-entry">
     <div class="card">
       <h2>Subjects — <span id="subjectsClassName"></span></h2>
-      <p class="hint">Current exam: <b id="currentExamLabel">—</b></p>
       <p class="hint">Set up the subjects for your class only. Add every subject for this term below.</p>
       <div id="subjectTags"></div>
       <div class="toolbar" style="margin-top:6px;">
@@ -112,6 +109,7 @@ let subjects = [];
 let classId = null;
 let classData = {className:"", students:[], submitted:false};
 let saveTimer = null;
+let schoolId = null;
 
 /* ===== AUTH GUARD ===== */
 onAuthStateChanged(auth, async (user)=>{
@@ -124,13 +122,14 @@ onAuthStateChanged(auth, async (user)=>{
     return;
   }
   classId = snap.data().classId;
+  schoolId = snap.data().schoolId;
   document.getElementById('whoAmI').textContent = snap.data().name || user.email;
   initData();
 });
 document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth).then(()=>window.location.href='index.html'));
 
 function initData(){
-  onSnapshot(doc(db,'meta','school'), (snap)=>{
+  onSnapshot(doc(db,'schools',schoolId), (snap)=>{
     if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
   });
   onSnapshot(doc(db,'classes',classId), (snap)=>{
@@ -140,7 +139,6 @@ function initData(){
       document.getElementById('appClassName').textContent = classData.className || "Class Teacher";
       document.getElementById('entryClassName').textContent = classData.className || "";
       document.getElementById('subjectsClassName').textContent = classData.className || "";
-      renderCurrentExamLabel();
       renderStatusBanner();
       // Never rebuild the input grid while someone's cursor is actually inside
       // it — rebuilding replaces the input elements and kicks the cursor out.
@@ -153,24 +151,6 @@ function initData(){
       }
     }
   });
-}
-
-// This class's own exam name, set by the Principal via "New Exam" /
-// "Start New Exam for Selected Classes".
-function currentExamSchool(){
-  return {
-    ...school,
-    exam: classData.examTitle || '',
-    year: classData.examYear || ''
-  };
-}
-
-function renderCurrentExamLabel(){
-  const title = classData.examTitle || "";
-  const year = classData.examYear || "";
-  document.getElementById('currentExamLabel').textContent = title
-    ? (title + (year ? (" · " + year) : ""))
-    : "Not scheduled yet — please contact the Principal.";
 }
 
 function isEditingSomething(){
@@ -381,10 +361,8 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
 /* ===== CLASS MARKSHEET + INDIVIDUAL REPORTS (view) ===== */
 function renderAllViews(){
   const students = classData.students || [];
-  const examSchool = currentExamSchool();
-
   document.getElementById('classSheetHolder').innerHTML = students.length
-    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(examSchool, subjects, students, classData.className)}</div>`
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, classData.className)}</div>`
     : `<div class="card empty-state"><div class="big">📋</div>Add students and marks first.</div>`;
 
   const noteWrap = document.getElementById('noteEditorWrap');
@@ -406,7 +384,7 @@ function renderAllViews(){
   function showOne(id){
     const row = rows.find(r=>r.id===id) || rows[0];
     if(!row) return;
-    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(examSchool, subjects, row, highest, classData.className)}</div>`;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, highest, classData.className)}</div>`;
     document.getElementById('teacherNoteInput').value = row.note || "";
     document.getElementById('teacherNoteInput').disabled = !!classData.submitted;
   }
@@ -420,7 +398,7 @@ function renderAllViews(){
     scheduleSave();
     const row = window._rows.find(r=>r.id===sel.value);
     if(row) row.note = e.target.value;
-    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(examSchool, subjects, row, window._highest, classData.className)}</div>`;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, window._highest, classData.className)}</div>`;
   };
 }
 
@@ -452,9 +430,8 @@ document.getElementById('btnPdfOne').addEventListener('click',()=>{
 document.getElementById('btnPdfAll').addEventListener('click',()=>{
   const rows = window._rows, highest = window._highest;
   if(!rows || rows.length===0) return;
-  const examSchool = currentExamSchool();
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = rows.map(r=>individualReportHtml(examSchool, subjects, r, highest, classData.className)).join('<div style="page-break-after:always;"></div>');
+  wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, classData.className)).join('<div style="page-break-after:always;"></div>');
   document.body.appendChild(wrapper);
   const opt = { margin:0, filename:`All-Reports-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`,
     image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
