@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin Console — Term Examination Marks Report System</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="appbar no-print">
+  <div class="brand-logo" id="appLogo">SA</div>
+  <div class="brand-text">
+    <span class="sch">Super Admin Console</span>
+    <span class="sub">Manage schools using this system</span>
+  </div>
+  <div class="spacer"></div>
+  <button class="ghost" id="btnBackToMySchool">My School's Dashboard</button>
+  <span class="who" id="whoAmI"></span>
+  <button class="ghost" id="btnLogout">Sign Out</button>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>Register a New School</h2>
+    <p class="hint">Creates that school's own space (name, logo, classes — completely separate from every other school) and their first Principal login. They'll get an email with a secure link to set their own password.</p>
+    <div class="grid3">
+      <div class="field"><label>School Name</label><input type="text" id="s_name" placeholder="e.g. Green Valley College"></div>
+      <div class="field"><label>Principal's Name</label><input type="text" id="s_pname" placeholder="e.g. Mrs. J. Fernando"></div>
+      <div class="field"><label>Principal's Email</label><input type="email" id="s_pemail" placeholder="principal@school.edu"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Access Start Date</label><input type="date" id="s_start"></div>
+      <div class="field"><label>Access End Date</label><input type="date" id="s_end"></div>
+    </div>
+    <div class="toolbar">
+      <button class="btn gold" id="btnRegister">+ Register School</button>
+      <span class="meta-note" id="registerNote"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>All Schools</h2>
+    <table class="classlist" id="schoolsTable">
+      <thead><tr><th>School</th><th>Principal</th><th>Access Window</th><th>Status</th><th></th></tr></thead>
+      <tbody id="schoolsBody"><tr><td colspan="5" class="meta-note">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="modal-backdrop" id="schoolCreatedModal" style="display:none;">
+  <div class="modal">
+    <h3>School registered</h3>
+    <p class="hint" id="schoolCreatedText"></p>
+    <div class="field"><label>Sign-in link to share</label><input type="text" id="shareLinkModal" readonly></div>
+    <div class="toolbar"><button class="btn" id="btnCloseModal">Done</button></div>
+  </div>
+</div>
+
+<script type="module">
+import { app, auth, db } from "./firebase-init.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig } from "./firebase-config.js";
+import { esc } from "./shared.js";
+
+let schools = [];
+
+document.getElementById('shareLinkModal').value = window.location.origin + window.location.pathname.replace('superadmin.html','index.html');
+
+/* ===== AUTH GUARD — Super Admin only ===== */
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){ window.location.href = 'index.html'; return; }
+  const snap = await getDoc(doc(db,'users',user.uid));
+  if(!snap.exists() || !snap.data().isSuperAdmin){
+    alert("This account doesn't have Super Admin access.");
+    window.location.href = 'index.html';
+    return;
+  }
+  document.getElementById('whoAmI').textContent = snap.data().name || user.email;
+  onSnapshot(collection(db,'schools'), (snapshot)=>{
+    schools = [];
+    snapshot.forEach(d=> schools.push({id:d.id, ...d.data()}));
+    schools.sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+    renderSchools();
+  });
+});
+document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth).then(()=>window.location.href='index.html'));
+document.getElementById('btnBackToMySchool').addEventListener('click', ()=> window.location.href = 'admin.html');
+
+/* ===== REGISTER A NEW SCHOOL (secondary Firebase app keeps you logged in) ===== */
+document.getElementById('btnRegister').addEventListener('click', async ()=>{
+  const name = document.getElementById('s_name').value.trim();
+  const pname = document.getElementById('s_pname').value.trim();
+  const pemail = document.getElementById('s_pemail').value.trim();
+  const startVal = document.getElementById('s_start').value;
+  const endVal = document.getElementById('s_end').value;
+  const note = document.getElementById('registerNote');
+  if(!name || !pname || !pemail || !startVal || !endVal) return alert("Please fill in every field, including both dates.");
+
+  const btn = document.getElementById('btnRegister');
+  btn.disabled = true; note.textContent = "Registering…";
+
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryAppForSchoolCreation_"+Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const tempPassword = Math.random().toString(36).slice(-10) + "Aa1!";
+
+  try{
+    const schoolRef = await addDoc(collection(db,'schools'), {
+      name, addr:"", logo:"", principal:pname, exam:"", year:"",
+      accessStart: new Date(startVal),
+      accessEnd: new Date(endVal)
+    });
+
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, pemail, tempPassword);
+    const newUid = cred.user.uid;
+    await sendPasswordResetEmail(secondaryAuth, pemail);
+    await signOut(secondaryAuth);
+
+    await setDoc(doc(db,'users',newUid), {role:'admin', name:pname, email:pemail, schoolId:schoolRef.id});
+
+    document.getElementById('s_name').value="";
+    document.getElementById('s_pname').value="";
+    document.getElementById('s_pemail').value="";
+    document.getElementById('s_start').value="";
+    document.getElementById('s_end').value="";
+    note.textContent = "";
+
+    document.getElementById('schoolCreatedText').innerHTML =
+      `<b>${esc(name)}</b> has been registered, with <b>${esc(pname)}</b> as their Principal. A password-setup email has been sent to <b>${esc(pemail)}</b>. Share the sign-in link below with them too.`;
+    document.getElementById('schoolCreatedModal').style.display='flex';
+  }catch(err){
+    let text = "Could not register the school.";
+    if(err.code==='auth/email-already-in-use') text = "That email is already registered to someone in this system.";
+    if(err.code==='auth/invalid-email') text = "Please enter a valid email address.";
+    alert(text);
+  }finally{
+    btn.disabled = false;
+  }
+});
+document.getElementById('btnCloseModal').addEventListener('click', ()=> document.getElementById('schoolCreatedModal').style.display='none');
+
+/* ===== SCHOOLS LIST ===== */
+function fmtDate(d){
+  if(!d) return "—";
+  const dt = d.toDate ? d.toDate() : new Date(d);
+  return dt.toLocaleDateString();
+}
+function renderSchools(){
+  const body = document.getElementById('schoolsBody');
+  if(schools.length===0){ body.innerHTML = `<tr><td colspan="5" class="meta-note">No schools registered yet.</td></tr>`; return; }
+  const now = Date.now();
+  body.innerHTML = schools.map(s=>{
+    const endDt = s.accessEnd ? (s.accessEnd.toDate ? s.accessEnd.toDate() : new Date(s.accessEnd)) : null;
+    const expired = endDt && endDt.getTime() < now;
+    const pill = expired
+      ? `<span class="status-pill" style="background:#fdeaea;color:#b3432d;">Expired</span>`
+      : `<span class="status-pill submitted">Active</span>`;
+    return `<tr>
+      <td><b>${esc(s.name)}</b></td>
+      <td>${esc(s.principal)||'—'}</td>
+      <td>${fmtDate(s.accessStart)} → ${fmtDate(s.accessEnd)}</td>
+      <td>${pill}</td>
+      <td><button class="btn small outline" data-id="${s.id}" data-action="editdates">Edit Dates</button></td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll('[data-action="editdates"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const s = schools.find(x=>x.id===b.dataset.id);
+      if(!s) return;
+      const newStart = prompt("New access start date (YYYY-MM-DD):", s.accessStart ? fmtDate(s.accessStart).split('/').reverse().join('-') : "");
+      if(newStart===null) return;
+      const newEnd = prompt("New access end date (YYYY-MM-DD):", s.accessEnd ? fmtDate(s.accessEnd).split('/').reverse().join('-') : "");
+      if(newEnd===null) return;
+      const startDate = new Date(newStart);
+      const endDate = new Date(newEnd);
+      if(isNaN(startDate) || isNaN(endDate)){ alert("Please enter valid dates in YYYY-MM-DD format."); return; }
+      await updateDoc(doc(db,'schools',s.id), {accessStart:startDate, accessEnd:endDate});
+    });
+  });
+}
+</script>
+</body>
+</html>
