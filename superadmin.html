@@ -63,11 +63,12 @@
 import { app, auth, db } from "./firebase-init.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 import { esc } from "./shared.js";
 
 let schools = [];
+let schoolAdmins = {}; // schoolId -> {uid, name, email}
 
 document.getElementById('shareLinkModal').value = window.location.origin + window.location.pathname.replace('superadmin.html','index.html');
 
@@ -85,6 +86,14 @@ onAuthStateChanged(auth, async (user)=>{
     schools = [];
     snapshot.forEach(d=> schools.push({id:d.id, ...d.data()}));
     schools.sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+    renderSchools();
+  });
+  onSnapshot(query(collection(db,'users'), where('role','==','admin')), (snapshot)=>{
+    schoolAdmins = {};
+    snapshot.forEach(d=>{
+      const data = d.data();
+      if(data.schoolId) schoolAdmins[data.schoolId] = {uid:d.id, name:data.name, email:data.email};
+    });
     renderSchools();
   });
 });
@@ -151,7 +160,7 @@ function fmtDate(d){
 }
 function renderSchools(){
   const body = document.getElementById('schoolsBody');
-  if(schools.length===0){ body.innerHTML = `<tr><td colspan="5" class="meta-note">No schools registered yet.</td></tr>`; return; }
+  if(schools.length===0){ body.innerHTML = `<tr><td colspan="6" class="meta-note">No schools registered yet.</td></tr>`; return; }
   const now = Date.now();
   body.innerHTML = schools.map(s=>{
     const endDt = s.accessEnd ? (s.accessEnd.toDate ? s.accessEnd.toDate() : new Date(s.accessEnd)) : null;
@@ -159,14 +168,40 @@ function renderSchools(){
     const pill = expired
       ? `<span class="status-pill" style="background:#fdeaea;color:#b3432d;">Expired</span>`
       : `<span class="status-pill submitted">Active</span>`;
+    const adminInfo = schoolAdmins[s.id];
     return `<tr>
       <td><b>${esc(s.name)}</b></td>
-      <td>${esc(s.principal)||'—'}</td>
+      <td>${esc(s.principal)||'—'}<br><span class="meta-note">${adminInfo ? esc(adminInfo.email) : 'no login yet'}</span></td>
       <td>${fmtDate(s.accessStart)} → ${fmtDate(s.accessEnd)}</td>
       <td>${pill}</td>
-      <td><button class="btn small outline" data-id="${s.id}" data-action="editdates">Edit Dates</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn small outline" data-id="${s.id}" data-action="editschool">Edit School</button>
+        <button class="btn small outline" data-id="${s.id}" data-action="editprincipal">Edit Principal</button>
+        <button class="btn small outline" data-id="${s.id}" data-action="editdates">Edit Dates</button>
+        <button class="btn small danger" data-id="${s.id}" data-action="deleteschool">Delete</button>
+      </td>
     </tr>`;
   }).join("");
+
+  body.querySelectorAll('[data-action="editschool"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const s = schools.find(x=>x.id===b.dataset.id);
+      if(!s) return;
+      const newName = prompt("School name:", s.name || "");
+      if(newName===null) return;
+      const newAddr = prompt("School address (optional):", s.addr || "");
+      if(newAddr===null) return;
+      await updateDoc(doc(db,'schools',s.id), {name:newName.trim(), addr:newAddr.trim()});
+    });
+  });
+
+  body.querySelectorAll('[data-action="editprincipal"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const s = schools.find(x=>x.id===b.dataset.id);
+      if(s) editPrincipal(s);
+    });
+  });
+
   body.querySelectorAll('[data-action="editdates"]').forEach(b=>{
     b.addEventListener('click', async ()=>{
       const s = schools.find(x=>x.id===b.dataset.id);
@@ -181,6 +216,63 @@ function renderSchools(){
       await updateDoc(doc(db,'schools',s.id), {accessStart:startDate, accessEnd:endDate});
     });
   });
+
+  body.querySelectorAll('[data-action="deleteschool"]').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const s = schools.find(x=>x.id===b.dataset.id);
+      if(!s) return;
+      if(!confirm(`Permanently delete "${s.name}"? This removes the school record and its Principal's login access.\n\nNote: any classes and class-teacher logins already created under this school are NOT automatically deleted — you'd need to remove those separately (from that school's own Admin Dashboard) if needed.\n\nThis cannot be undone.`)) return;
+      if(!confirm("Please confirm once more — this is permanent. Continue?")) return;
+      const adminInfo = schoolAdmins[s.id];
+      if(adminInfo){
+        await deleteDoc(doc(db,'users',adminInfo.uid));
+      }
+      await deleteDoc(doc(db,'schools',s.id));
+    });
+  });
+}
+
+/* ===== EDIT PRINCIPAL (rename, or transfer to a new email entirely) ===== */
+async function editPrincipal(s){
+  const adminInfo = schoolAdmins[s.id];
+  if(!adminInfo){
+    alert("This school doesn't have a Principal login yet.");
+    return;
+  }
+  const newName = prompt("Principal's name:", adminInfo.name || "");
+  if(newName===null) return;
+  const newEmail = prompt("Principal's email (change this only if handing the role to a new person):", adminInfo.email || "");
+  if(newEmail===null) return;
+  const trimmedName = newName.trim();
+  const trimmedEmail = newEmail.trim();
+
+  if(trimmedEmail === adminInfo.email){
+    await updateDoc(doc(db,'users',adminInfo.uid), {name:trimmedName});
+    await updateDoc(doc(db,'schools',s.id), {principal:trimmedName});
+    return;
+  }
+
+  if(!confirm(`This creates a brand-new login for ${trimmedEmail} and hands the Principal role for "${s.name}" over to them.\n\nThe OLD email (${adminInfo.email}) will stop working. They'll get an email at ${trimmedEmail} to set a new password.\n\nContinue?`)) return;
+
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryAppForPrincipalChange_"+Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const tempPassword = Math.random().toString(36).slice(-10) + "Aa1!";
+  try{
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, trimmedEmail, tempPassword);
+    const newUid = cred.user.uid;
+    await sendPasswordResetEmail(secondaryAuth, trimmedEmail);
+    await signOut(secondaryAuth);
+
+    await setDoc(doc(db,'users',newUid), {role:'admin', name:trimmedName, email:trimmedEmail, schoolId:s.id});
+    await deleteDoc(doc(db,'users',adminInfo.uid));
+    await updateDoc(doc(db,'schools',s.id), {principal:trimmedName});
+    alert(`Principal updated. A password-setup email has been sent to ${trimmedEmail}. The old login (${adminInfo.email}) no longer works — you can also remove it from Firebase Authentication → Users if you'd like to fully clean it up (this is optional, not required).`);
+  }catch(err){
+    let text = "Could not create the new login.";
+    if(err.code==='auth/email-already-in-use') text = "That email is already registered to someone else in this system.";
+    if(err.code==='auth/invalid-email') text = "Please enter a valid email address.";
+    alert(text);
+  }
 }
 </script>
 </body>
