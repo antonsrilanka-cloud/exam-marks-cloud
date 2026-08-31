@@ -361,8 +361,11 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
 /* ===== CLASS MARKSHEET + INDIVIDUAL REPORTS (view) ===== */
 function renderAllViews(){
   const students = classData.students || [];
+  // This class carries its own exam title/year (set by the Principal via
+  // "New Exam"), so the header always reflects THIS class's exam.
+  const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
   document.getElementById('classSheetHolder').innerHTML = students.length
-    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(school, subjects, students, classData.className)}</div>`
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, classData.className)}</div>`
     : `<div class="card empty-state"><div class="big">📋</div>Add students and marks first.</div>`;
 
   const noteWrap = document.getElementById('noteEditorWrap');
@@ -384,7 +387,7 @@ function renderAllViews(){
   function showOne(id){
     const row = rows.find(r=>r.id===id) || rows[0];
     if(!row) return;
-    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, highest, classData.className)}</div>`;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(classSchool, subjects, row, highest, classData.className)}</div>`;
     document.getElementById('teacherNoteInput').value = row.note || "";
     document.getElementById('teacherNoteInput').disabled = !!classData.submitted;
   }
@@ -398,7 +401,7 @@ function renderAllViews(){
     scheduleSave();
     const row = window._rows.find(r=>r.id===sel.value);
     if(row) row.note = e.target.value;
-    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(school, subjects, row, window._highest, classData.className)}</div>`;
+    document.getElementById('individualSheetHolder').innerHTML = `<div id="individualPrintArea">${individualReportHtml(classSchool, subjects, row, window._highest, classData.className)}</div>`;
   };
 }
 
@@ -430,8 +433,9 @@ document.getElementById('btnPdfOne').addEventListener('click',()=>{
 document.getElementById('btnPdfAll').addEventListener('click',()=>{
   const rows = window._rows, highest = window._highest;
   if(!rows || rows.length===0) return;
+  const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
   const wrapper = document.createElement('div');
-  wrapper.innerHTML = rows.map(r=>individualReportHtml(school, subjects, r, highest, classData.className)).join('<div style="page-break-after:always;"></div>');
+  wrapper.innerHTML = rows.map(r=>individualReportHtml(classSchool, subjects, r, highest, classData.className)).join('<div style="page-break-after:always;"></div>');
   document.body.appendChild(wrapper);
   const opt = { margin:0, filename:`All-Reports-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`,
     image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,useCORS:true},
