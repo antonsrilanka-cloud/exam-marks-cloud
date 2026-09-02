@@ -210,6 +210,33 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
   .sheet-landscape,.sheet-portrait{box-shadow:none;border:none;margin:0 auto;}
   .panel{display:none !important;}
   .panel.print-active{display:block !important;}
+
+  /* Repeat the school header on every printed page — without this, only
+     the first page shows the school name/logo/class, and any continuation
+     page (e.g. a class with more students than fit on one page) shows a
+     bare table with no context. A fixed-position element is redrawn on
+     every page by the browser's print engine, which is exactly the
+     "repeating header" behaviour we want here. */
+  .sheet-landscape .sheet-header{
+    position:fixed;
+    top:0; left:0; right:0;
+    background:#fff;
+    padding:10mm 12mm 8px 12mm;
+    margin-bottom:0;
+  }
+  .sheet-landscape > table.landscape-tbl{
+    margin-top:34mm;
+  }
+  .sheet-portrait .p-header{
+    position:fixed;
+    top:0; left:0; right:0;
+    background:#fff;
+    padding:16mm 18mm 14px 18mm;
+    margin-bottom:0;
+  }
+  .sheet-portrait > .student-meta{
+    margin-top:42mm;
+  }
 }
 
 .empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}
