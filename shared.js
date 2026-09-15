@@ -250,3 +250,30 @@ export async function downloadPdf(el, filename, orientation){
   pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
   pdf.save(filename);
 }
+
+// Combines two landscape sheets (the class marksheet, then the analysis
+// report) into ONE downloaded PDF — the marksheet as page 1, the analysis
+// report as page 2, each sized to fit its own content exactly. Since each
+// page is captured and placed independently, this doesn't run into any
+// of the native browser-print pagination issues that landscape sheets can
+// hit when they span multiple physical A4 pages.
+export async function downloadCombinedLandscapePdf(firstEl, secondEl, filename){
+  const target1 = firstEl.querySelector('.sheet-landscape') || firstEl;
+  const target2 = secondEl.querySelector('.sheet-landscape') || secondEl;
+  const pageWidthMm = 297;
+
+  const canvas1 = await window.html2canvas(target1, { scale:2, useCORS:true });
+  const height1Mm = (canvas1.height / canvas1.width) * pageWidthMm;
+
+  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, height1Mm], orientation:'landscape' });
+  pdf.addImage(canvas1.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, pageWidthMm, height1Mm);
+
+  const canvas2 = await window.html2canvas(target2, { scale:2, useCORS:true });
+  const height2Mm = (canvas2.height / canvas2.width) * pageWidthMm;
+  pdf.addPage([pageWidthMm, height2Mm], 'landscape');
+  pdf.addImage(canvas2.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, pageWidthMm, height2Mm);
+
+  pdf.save(filename);
+}
+

@@ -240,6 +240,18 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
   .sheet-portrait > .student-meta{
     margin-top:42mm;
   }
+
+  /* Used only when the Class Marksheet's own Print button triggers a
+     combined print (marksheet + analysis report together) — forces the
+     analysis report to start on its own fresh page rather than
+     continuing directly after the marksheet. Scoped to this specific
+     action so printing the Analysis tab/section on its own is
+     unaffected. Covers both teacher.html (a separate #panel-analysis)
+     and admin.html (a single view panel with an #analysisSheetHolder). */
+  body.combined-print #panel-analysis,
+  body.combined-print #analysisSheetHolder{
+    page-break-before: always;
+  }
 }
 
 .empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}

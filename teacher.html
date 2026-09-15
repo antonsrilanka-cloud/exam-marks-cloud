@@ -128,7 +128,7 @@
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { esc, uid, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, prepareLandscapePrintHeader } from "./shared.js";
+import { esc, uid, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, downloadCombinedLandscapePdf, prepareLandscapePrintHeader } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
 let subjects = [];
@@ -496,8 +496,15 @@ document.getElementById('btnPrintClass').addEventListener('click',()=>{
   setPageSize('landscape');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
   document.getElementById('panel-class').classList.add('print-active');
+  const hasAnalysis = !!document.getElementById('analysisPrintArea');
+  if(hasAnalysis){
+    document.getElementById('panel-analysis').classList.add('print-active');
+    document.body.classList.add('combined-print');
+  }
   prepareLandscapePrintHeader();
   window.print();
+  document.getElementById('panel-analysis').classList.remove('print-active');
+  document.body.classList.remove('combined-print');
 });
 document.getElementById('btnPrintOne').addEventListener('click',()=>{
   setPageSize('portrait');
@@ -515,7 +522,13 @@ document.getElementById('btnPrintAnalysis').addEventListener('click',()=>{
 document.getElementById('btnPdfClass').addEventListener('click',()=>{
   const el = document.getElementById('classSheetPrintArea');
   if(!el) return alert("Add students first.");
-  downloadPdf(el, `Class-Marksheet-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
+  const analysisEl = document.getElementById('analysisPrintArea');
+  const filename = `Class-Marksheet-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`;
+  if(analysisEl){
+    downloadCombinedLandscapePdf(el, analysisEl, filename);
+  } else {
+    downloadPdf(el, filename, 'landscape');
+  }
 });
 document.getElementById('btnPdfOne').addEventListener('click',()=>{
   const el = document.getElementById('individualPrintArea');
