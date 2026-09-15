@@ -108,6 +108,17 @@
     </div>
     <div id="classSheetHolder"></div>
 
+    <div class="card no-print" id="rangeEditCard" style="display:none;">
+      <h2>Marks Analysis Ranges — <span id="rangeEditClassName"></span></h2>
+      <p class="hint">As Principal, you can set or adjust this class's mark ranges yourself — this updates the same ranges the class teacher sees and uses.</p>
+      <div id="adminRangeTags"></div>
+      <div class="toolbar" style="margin-top:6px;">
+        <input type="number" id="adminNewRangeMin" placeholder="From" style="max-width:100px;">
+        <input type="number" id="adminNewRangeMax" placeholder="To" style="max-width:100px;">
+        <button class="btn outline" id="btnAdminAddRange">+ Add Range</button>
+      </div>
+    </div>
+
     <div class="preview-toolbar no-print" id="viewAnalysisToolbar" style="display:none;">
       <b>Marks Analysis Report</b>
       <span class="spacer"></span>
@@ -697,6 +708,7 @@ function renderClassView(classId){
     document.getElementById('viewSheetToolbar').style.display='none';
     document.getElementById('viewAnalysisToolbar').style.display='none';
     document.getElementById('viewIndivToolbar').style.display='none';
+    document.getElementById('rangeEditCard').style.display='none';
     reopenBtn.style.display = 'none';
     return;
   }
@@ -717,11 +729,18 @@ function renderClassView(classId){
       ? `<div class="card empty-state"><div class="big">📋</div>This class teacher hasn't set up subjects yet.</div>`
       : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
 
+  // As Principal, you can adjust this class's mark ranges yourself — this
+  // writes to the exact same field the class teacher's own range editor
+  // uses, so whichever of you edits it last is what everyone sees.
+  document.getElementById('rangeEditCard').style.display = (students.length && subjects.length) ? 'block' : 'none';
+  document.getElementById('rangeEditClassName').textContent = cls.className || '';
+  renderAdminRangeTags(cls);
+
   document.getElementById('viewAnalysisToolbar').style.display = (students.length && subjects.length && ranges.length) ? 'flex':'none';
   document.getElementById('analysisSheetHolder').innerHTML = (students.length && subjects.length)
     ? (ranges.length
         ? `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, cls.className)}</div>`
-        : `<div class="card empty-state"><div class="big">📊</div>This class teacher hasn't set up any mark ranges yet.</div>`)
+        : `<div class="card empty-state"><div class="big">📊</div>Add at least one mark range above to see the analysis.</div>`)
     : '';
 
   const {highest, rows} = computeStats(subjects, students);
@@ -743,6 +762,42 @@ function renderClassView(classId){
   window._currentViewSubjects = subjects;
   window._currentViewSchool = classSchool;
 }
+
+function renderAdminRangeTags(cls){
+  const wrap = document.getElementById('adminRangeTags');
+  const ranges = cls.markRanges || [];
+  if(ranges.length===0){ wrap.innerHTML = `<span class="meta-note">No ranges added yet — add the first one below.</span>`; return; }
+  wrap.innerHTML = ranges.map((r,i)=>`<span class="subject-tag">${String(r.min).padStart(2,'0')}-${String(r.max).padStart(2,'0')}<button data-i="${i}" class="rmAdminRange">×</button></span>`).join("");
+  wrap.querySelectorAll('.rmAdminRange').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const i = Number(b.dataset.i);
+      const newRanges = [...(cls.markRanges||[])];
+      newRanges.splice(i,1);
+      cls.markRanges = newRanges;
+      renderClassView(activeClassId);
+      await updateDoc(doc(db,'classes',cls.id), {markRanges: newRanges});
+    });
+  });
+}
+document.getElementById('btnAdminAddRange').addEventListener('click', async ()=>{
+  if(!activeClassId) return;
+  const cls = classes.find(c=>c.id===activeClassId);
+  if(!cls) return;
+  const minEl = document.getElementById('adminNewRangeMin');
+  const maxEl = document.getElementById('adminNewRangeMax');
+  const min = Number(minEl.value);
+  const max = Number(maxEl.value);
+  if(minEl.value==="" || maxEl.value==="" || isNaN(min) || isNaN(max) || max<min){
+    alert("Please enter a valid 'From' and 'To' value (From must not be greater than To).");
+    return;
+  }
+  const newRanges = [...(cls.markRanges||[]), {min, max}];
+  newRanges.sort((a,b)=>a.min-b.min);
+  cls.markRanges = newRanges;
+  renderClassView(activeClassId);
+  minEl.value=""; maxEl.value="";
+  await updateDoc(doc(db,'classes',cls.id), {markRanges: newRanges});
+});
 
 document.getElementById('btnReopen').addEventListener('click', async ()=>{
   if(!activeClassId) return;
