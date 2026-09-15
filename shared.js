@@ -96,7 +96,7 @@ export function prepareLandscapePrintHeader(){
   const header = document.querySelector('.sheet-landscape .sheet-header');
   if(header){
     const heightPx = header.getBoundingClientRect().height;
-    document.documentElement.style.setProperty('--landscape-header-clear', (heightPx + 12) + 'px');
+    document.documentElement.style.setProperty('--landscape-header-clear', (heightPx + 60) + 'px');
   }
 }
 
