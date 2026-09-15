@@ -73,9 +73,9 @@ export function computeRangeAnalysis(subjects, students, ranges){
   return {rows, totals};
 }
 
-function sheetHeaderRow(school, extraLine, colspan){
+function sheetHeaderHtml(school, extraLine){
   const logo = school.logo ? `<img src="${school.logo}">` : `🏫`;
-  return `<tr class="header-row"><td colspan="${colspan}" style="border:none;padding:0;">
+  return `
     <div class="sheet-header">
       <div class="logo-box">${logo}</div>
       <div class="htext">
@@ -84,8 +84,20 @@ function sheetHeaderRow(school, extraLine, colspan){
         <div class="sexam">${esc(school.exam)||"Term Examination"} ${school.year?("· "+esc(school.year)):""} ${extraLine?("· "+esc(extraLine)):""}</div>
       </div>
       <div class="logo-box rlogo" style="visibility:hidden;">${logo}</div>
-    </div>
-  </td></tr>`;
+    </div>`;
+}
+
+// Measures the actual rendered height of the school header (in px) and
+// stores it as a CSS custom property, so the print stylesheet can push
+// the table down by EXACTLY that much — instead of a fixed guess in mm,
+// which was hiding rows behind the header when the guess ran a little
+// short. Call this right before window.print() for a landscape sheet.
+export function prepareLandscapePrintHeader(){
+  const header = document.querySelector('.sheet-landscape .sheet-header');
+  if(header){
+    const heightPx = header.getBoundingClientRect().height;
+    document.documentElement.style.setProperty('--landscape-header-clear', (heightPx + 12) + 'px');
+  }
 }
 
 export function renderClassSheetHtml(school, subjects, students, className){
@@ -111,11 +123,9 @@ export function renderClassSheetHtml(school, subjects, students, className){
 
   return `
     <div class="sheet-landscape">
+      ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>
-          ${sheetHeaderRow(school, className, colspan)}
-          ${columnRow}
-        </thead>
+        <thead>${columnRow}</thead>
         <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No students yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
@@ -204,11 +214,9 @@ export function renderAnalysisHtml(school, subjects, students, ranges, className
 
   return `
     <div class="sheet-landscape">
+      ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>
-          ${sheetHeaderRow(school, className, colspan)}
-          ${columnRow}
-        </thead>
+        <thead>${columnRow}</thead>
         <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No mark ranges set up yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>

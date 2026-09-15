@@ -157,7 +157,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { esc, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
+import { esc, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, prepareLandscapePrintHeader } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
 let classes = []; // [{id, schoolId, className, teacherUid, teacherEmail, teacherName, students, subjects, markRanges, submitted, submittedAt, editRequested, examTitle, examYear}]
@@ -758,6 +758,7 @@ document.getElementById('btnPrintClass').addEventListener('click', ()=>{
   document.getElementById('analysisSheetHolder').style.display='none';
   document.getElementById('viewIndivToolbar').style.setProperty('display','none','important');
   document.getElementById('individualSheetHolder').style.display='none';
+  prepareLandscapePrintHeader();
   window.print();
   document.getElementById('analysisSheetHolder').style.display='';
   document.getElementById('individualSheetHolder').style.display='';
@@ -768,6 +769,7 @@ document.getElementById('btnPrintAnalysis').addEventListener('click', ()=>{
   document.getElementById('panel-view').classList.add('print-active');
   document.getElementById('classSheetHolder').style.display='none';
   document.getElementById('individualSheetHolder').style.display='none';
+  prepareLandscapePrintHeader();
   window.print();
   document.getElementById('classSheetHolder').style.display='';
   document.getElementById('individualSheetHolder').style.display='';
