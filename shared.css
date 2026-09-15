@@ -127,6 +127,7 @@ table.classlist th{color:var(--ink-soft);text-transform:uppercase;font-size:11px
 table.landscape-tbl{width:100%;border-collapse:collapse;font-size:9.6px;}
 table.landscape-tbl th,table.landscape-tbl td{border:1px solid #9aa7b8;padding:3px 4px;text-align:center;}
 table.landscape-tbl thead th{background:var(--navy);color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.02em;}
+table.landscape-tbl thead tr.print-clear-row{display:none;}
 table.landscape-tbl td.sn{width:22px;}
 table.landscape-tbl td.name{text-align:left;font-weight:600;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;}
 table.landscape-tbl tbody tr:nth-child(even){background:#f5f6f4;}
@@ -213,12 +214,16 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
 
   /* Repeat the school header on every printed page using position:fixed —
      the browser's print engine redraws a fixed element on every page,
-     which is what we want. The compensating space below it (so the table
-     doesn't start underneath the header) is set via a CSS variable that
-     JavaScript measures from the ACTUAL rendered header height right
-     before printing (see prepareLandscapePrintHeader in shared.js) —
-     rather than a fixed mm guess, which was hiding rows when the guess
-     ran even slightly short. */
+     which is what we want. The compensating space below it must live
+     INSIDE the table's own <thead> (as a spacer row) rather than as a
+     one-time margin on the table itself — a margin only applies once, at
+     the very top of the whole table, so it protected page 1 but left NO
+     clearance on later pages, hiding the repeating subject-name row and
+     the first few students underneath the header. A spacer row inside
+     <thead> repeats on every page along with the column names, so the
+     clearance now repeats too. Its height is set from the ACTUAL
+     rendered header height, measured by JavaScript right before printing
+     (see prepareLandscapePrintHeader in shared.js). */
   .sheet-landscape .sheet-header{
     position:fixed;
     top:0; left:0; right:0;
@@ -226,8 +231,9 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
     padding:10mm 12mm 8px 12mm;
     margin-bottom:0;
   }
-  .sheet-landscape > table.landscape-tbl{
-    margin-top: var(--landscape-header-clear, 40mm);
+  table.landscape-tbl thead tr.print-clear-row{
+    display: table-row;
+    height: var(--landscape-header-clear, 40mm);
   }
 
   .sheet-portrait .p-header{

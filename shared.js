@@ -125,7 +125,10 @@ export function renderClassSheetHtml(school, subjects, students, className, teac
     <div class="sheet-landscape">
       ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>${columnRow}</thead>
+        <thead>
+          <tr class="print-clear-row"><td colspan="${colspan}" style="border:none;padding:0;"></td></tr>
+          ${columnRow}
+        </thead>
         <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No students yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
@@ -216,7 +219,10 @@ export function renderAnalysisHtml(school, subjects, students, ranges, className
     <div class="sheet-landscape">
       ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>${columnRow}</thead>
+        <thead>
+          <tr class="print-clear-row"><td colspan="${colspan}" style="border:none;padding:0;"></td></tr>
+          ${columnRow}
+        </thead>
         <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No mark ranges set up yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
