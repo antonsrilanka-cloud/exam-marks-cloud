@@ -481,15 +481,24 @@ document.getElementById('btnPrintAnalysis').addEventListener('click',()=>{
   prepareLandscapePrintHeader();
   window.print();
 });
-document.getElementById('btnPdfClass').addEventListener('click',()=>{
+document.getElementById('btnPdfClass').addEventListener('click', async ()=>{
   const el = document.getElementById('classSheetPrintArea');
   if(!el) return alert("Add students first.");
   const analysisEl = document.getElementById('analysisPrintArea');
   const filename = `Class-Marksheet-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`;
-  if(analysisEl){
-    downloadCombinedLandscapePdf(el, analysisEl, filename);
-  } else {
-    downloadPdf(el, filename, 'landscape');
+  const btn = document.getElementById('btnPdfClass');
+  const oldText = btn.textContent;
+  btn.disabled = true; btn.textContent = "Preparing PDF…";
+  try{
+    if(analysisEl){
+      await downloadCombinedLandscapePdf(el, analysisEl, filename);
+    } else {
+      await downloadPdf(el, filename, 'landscape');
+    }
+  }catch(err){
+    alert("Sorry, the PDF could not be created: " + err.message + "\n\nPlease try again, or use Print \u2192 Save as PDF instead.");
+  }finally{
+    btn.disabled = false; btn.textContent = oldText;
   }
 });
 document.getElementById('btnPdfOne').addEventListener('click',()=>{
