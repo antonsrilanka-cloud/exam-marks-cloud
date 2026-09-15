@@ -673,7 +673,7 @@ function renderHistoryView(historyId){
       <button class="btn outline" id="btnPrintHistory">🖨 Print</button>
       <button class="btn gold" id="btnPdfHistory">⬇ Download PDF</button>
     </div>
-    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className)}</div>`;
+    <div id="historySheetPrintArea">${renderClassSheetHtml(histSchool, subjects, students, h.className, h.teacherName)}</div>`;
   document.getElementById('btnPrintHistory').addEventListener('click', ()=>{
     setPageSize('landscape');
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
@@ -724,7 +724,7 @@ function renderClassView(classId){
 
   document.getElementById('viewSheetToolbar').style.display = students.length? 'flex':'none';
   document.getElementById('classSheetHolder').innerHTML = students.length
-    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, cls.className)}</div>`
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, cls.className, cls.teacherName)}</div>`
     : subjects.length===0
       ? `<div class="card empty-state"><div class="big">📋</div>This class teacher hasn't set up subjects yet.</div>`
       : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
@@ -739,7 +739,7 @@ function renderClassView(classId){
   document.getElementById('viewAnalysisToolbar').style.display = (students.length && subjects.length && ranges.length) ? 'flex':'none';
   document.getElementById('analysisSheetHolder').innerHTML = (students.length && subjects.length)
     ? (ranges.length
-        ? `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, cls.className)}</div>`
+        ? `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, cls.className, cls.teacherName)}</div>`
         : `<div class="card empty-state"><div class="big">📊</div>Add at least one mark range above to see the analysis.</div>`)
     : '';
 
