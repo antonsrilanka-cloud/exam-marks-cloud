@@ -87,13 +87,8 @@
   <div class="panel" id="panel-analysis">
     <div class="card">
       <h2>Marks Analysis Ranges</h2>
-      <p class="hint">Set the mark ranges used in the Analysis Report below (e.g. 00-20, 21-40, 41-60, 61-80, 81-100). Add, remove, or change these anytime — this is entirely up to you.</p>
+      <p class="hint">These ranges are set by the Principal and used in the Analysis Report below.</p>
       <div id="rangeTags"></div>
-      <div class="toolbar" style="margin-top:6px;">
-        <input type="number" id="newRangeMin" placeholder="From" style="max-width:100px;">
-        <input type="number" id="newRangeMax" placeholder="To" style="max-width:100px;">
-        <button class="btn outline" id="btnAddRange">+ Add Range</button>
-      </div>
     </div>
     <div class="preview-toolbar no-print">
       <b>Marks Analysis Report</b>
@@ -188,9 +183,7 @@ function isEditingSomething(){
   const noteInput = document.getElementById('teacherNoteInput');
   const subjName = document.getElementById('newSubjectName');
   const subjMax = document.getElementById('newSubjectMax');
-  const rangeMin = document.getElementById('newRangeMin');
-  const rangeMax = document.getElementById('newRangeMax');
-  return (entryBody && entryBody.contains(ae)) || ae===noteInput || ae===subjName || ae===subjMax || ae===rangeMin || ae===rangeMax;
+  return (entryBody && entryBody.contains(ae)) || ae===noteInput || ae===subjName || ae===subjMax;
 }
 
 function renderTopBar(){
@@ -223,7 +216,6 @@ function renderStatusBanner(){
   document.getElementById('btnSubmit').disabled = classData.submitted;
   document.getElementById('btnSubmit').textContent = classData.submitted ? "✓ Already Submitted" : "✓ Submit Completed Marks Sheet";
   document.getElementById('btnAddSubject').disabled = classData.submitted;
-  document.getElementById('btnAddRange').disabled = classData.submitted;
 }
 
 /* ===== SUBJECTS (per class) ===== */
@@ -268,40 +260,10 @@ document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
 /* ===== MARKS ANALYSIS RANGES (per class, teacher-controlled) ===== */
 function renderRangeTags(){
   const wrap = document.getElementById('rangeTags');
-  const locked = !!classData.submitted;
   const ranges = classData.markRanges || [];
-  if(ranges.length===0){ wrap.innerHTML = `<span class="meta-note">No ranges added yet — add your first one below.</span>`; return; }
-  wrap.innerHTML = ranges.map((r,i)=>`<span class="subject-tag">${String(r.min).padStart(2,'0')}-${String(r.max).padStart(2,'0')}${locked?'':`<button data-i="${i}" class="rmRange">×</button>`}</span>`).join("");
-  wrap.querySelectorAll('.rmRange').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const i = Number(b.dataset.i);
-      const newRanges = [...(classData.markRanges||[])];
-      newRanges.splice(i,1);
-      classData.markRanges = newRanges;
-      renderRangeTags();
-      renderAnalysisView();
-      await updateDoc(doc(db,'classes',classId), {markRanges: newRanges});
-    });
-  });
+  if(ranges.length===0){ wrap.innerHTML = `<span class="meta-note">Your Principal hasn't set up mark ranges for this class yet.</span>`; return; }
+  wrap.innerHTML = ranges.map(r=>`<span class="subject-tag">${String(r.min).padStart(2,'0')}-${String(r.max).padStart(2,'0')}</span>`).join("");
 }
-document.getElementById('btnAddRange').addEventListener('click', async ()=>{
-  if(classData.submitted) return;
-  const minEl = document.getElementById('newRangeMin');
-  const maxEl = document.getElementById('newRangeMax');
-  const min = Number(minEl.value);
-  const max = Number(maxEl.value);
-  if(minEl.value==="" || maxEl.value==="" || isNaN(min) || isNaN(max) || max<min){
-    alert("Please enter a valid 'From' and 'To' value (From must not be greater than To).");
-    return;
-  }
-  const newRanges = [...(classData.markRanges||[]), {min, max}];
-  newRanges.sort((a,b)=>a.min-b.min);
-  classData.markRanges = newRanges;
-  renderRangeTags();
-  renderAnalysisView();
-  await updateDoc(doc(db,'classes',classId), {markRanges: newRanges});
-  minEl.value=""; maxEl.value="";
-});
 
 function renderAnalysisView(){
   const students = classData.students || [];
