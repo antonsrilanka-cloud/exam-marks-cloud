@@ -80,7 +80,7 @@
     <div class="card">
       <h2>Class Teachers & Submission Status</h2>
       <p class="hint">Share this link with every class teacher: <b id="shareLink">—</b> <button class="btn small outline" id="btnCopyLink">Copy Link</button></p>
-      <p class="hint">When it's time for a new exam, use <b>New Exam</b> on a class instead of re-adding the teacher — it archives their current results into <b>Exam History</b> and gives them a fresh blank sheet, using the exact same login. No new account or password email needed.</p>
+      <p class="hint">When it's time for a new exam, tick the classes below and use <b>Start New Exam for Selected Classes</b> — it archives each ticked class's current results into <b>Exam History</b> and gives them a fresh blank sheet, using the exact same login. Different classes can be mid-different-exams at once (e.g. a Pilot Exam for one grade while another is still on its Unit Exam).</p>
       <div class="toolbar" style="margin-bottom:14px;">
         <button class="btn outline" id="btnNewExamAll">Start New Exam for Selected Classes</button>
       </div>
@@ -107,6 +107,14 @@
       <button class="btn gold" id="btnPdfClass">⬇ Download PDF</button>
     </div>
     <div id="classSheetHolder"></div>
+
+    <div class="preview-toolbar no-print" id="viewAnalysisToolbar" style="display:none;">
+      <b>Marks Analysis Report</b>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintAnalysis">🖨 Print</button>
+      <button class="btn gold" id="btnPdfAnalysis">⬇ Download PDF</button>
+    </div>
+    <div id="analysisSheetHolder"></div>
 
     <div class="preview-toolbar no-print" id="viewIndivToolbar" style="display:none;">
       <b>Individual Report</b>
@@ -149,10 +157,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { esc, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
+import { esc, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
-let classes = []; // [{id, schoolId, className, teacherUid, teacherEmail, teacherName, students, subjects, submitted, submittedAt, editRequested}]
+let classes = []; // [{id, schoolId, className, teacherUid, teacherEmail, teacherName, students, subjects, markRanges, submitted, submittedAt, editRequested, examTitle, examYear}]
 let examHistory = []; // [{id, schoolId, classId, className, teacherName, examTitle, examYear, subjects, students, submitted, submittedAt, archivedAt}]
 let currentUser = null;
 let schoolId = null;
@@ -341,7 +349,7 @@ document.getElementById('btnCreateTeacher').addEventListener('click', async ()=>
 
     const classRef = await addDoc(collection(db,'classes'), {
       schoolId, className, teacherUid:newUid, teacherEmail:email, teacherName,
-      students: [], subjects: [], submitted:false, submittedAt:null, examTitle:'', examYear:''
+      students: [], subjects: [], submitted:false, submittedAt:null, examTitle:'', examYear:'', markRanges: []
     });
     await setDoc(doc(db,'users',newUid), {role:'teacher', name:teacherName, email, classId:classRef.id, schoolId});
 
@@ -483,6 +491,15 @@ function renderClassList(){
   });
 }
 
+document.getElementById('selectAllClasses').addEventListener('change', (e)=>{
+  if(e.target.checked){
+    classes.forEach(c=> selectedClassIds.add(c.id));
+  } else {
+    selectedClassIds.clear();
+  }
+  renderClassList();
+});
+
 /* ===== EDIT TEACHER EMAIL (creates a new login, moves the class over, retires the old email) ===== */
 async function changeTeacherEmail(cls){
   const newEmail = prompt(`Correct email for ${cls.teacherName} (current: ${cls.teacherEmail}):`, cls.teacherEmail || "");
@@ -536,15 +553,6 @@ async function startNewExamForClass(cls, newTitle, newYear){
     examTitle: newTitle, examYear: newYear
   });
 }
-document.getElementById('selectAllClasses').addEventListener('change', (e)=>{
-  if(e.target.checked){
-    classes.forEach(c=> selectedClassIds.add(c.id));
-  } else {
-    selectedClassIds.clear();
-  }
-  renderClassList();
-});
-
 document.getElementById('btnNewExamAll').addEventListener('click', async ()=>{
   const targetClasses = classes.filter(c=> selectedClassIds.has(c.id));
   if(targetClasses.length===0) return alert("Please tick the checkbox next to each class you want to start a new exam for, then try again.");
@@ -627,7 +635,9 @@ async function restoreExamHistory(h){
     submitted: !!h.submitted,
     submittedAt: h.submittedAt || null,
     editRequested: false,
-    editRequestedAt: null
+    editRequestedAt: null,
+    examTitle: h.examTitle || '',
+    examYear: h.examYear || ''
   });
   await deleteDoc(doc(db,'examHistory',h.id));
   document.getElementById('historyViewHolder').innerHTML = "";
@@ -682,8 +692,10 @@ function renderClassView(classId){
   const reopenBtn = document.getElementById('btnReopen');
   if(!cls){
     document.getElementById('classSheetHolder').innerHTML = "";
+    document.getElementById('analysisSheetHolder').innerHTML = "";
     document.getElementById('individualSheetHolder').innerHTML = "";
     document.getElementById('viewSheetToolbar').style.display='none';
+    document.getElementById('viewAnalysisToolbar').style.display='none';
     document.getElementById('viewIndivToolbar').style.display='none';
     reopenBtn.style.display = 'none';
     return;
@@ -691,6 +703,7 @@ function renderClassView(classId){
   reopenBtn.style.display = cls.submitted ? 'inline-block' : 'none';
   const students = cls.students || [];
   const subjects = cls.subjects || [];
+  const ranges = cls.markRanges || [];
   // Each class carries its own exam title/year (set via "New Exam"), so
   // different classes can be mid-different-exams at the same time — the
   // marksheet/report header must reflect THIS class's exam, not a
@@ -703,6 +716,13 @@ function renderClassView(classId){
     : subjects.length===0
       ? `<div class="card empty-state"><div class="big">📋</div>This class teacher hasn't set up subjects yet.</div>`
       : `<div class="card empty-state"><div class="big">📋</div>This class has no marks entered yet.</div>`;
+
+  document.getElementById('viewAnalysisToolbar').style.display = (students.length && subjects.length && ranges.length) ? 'flex':'none';
+  document.getElementById('analysisSheetHolder').innerHTML = (students.length && subjects.length)
+    ? (ranges.length
+        ? `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, cls.className)}</div>`
+        : `<div class="card empty-state"><div class="big">📊</div>This class teacher hasn't set up any mark ranges yet.</div>`)
+    : '';
 
   const {highest, rows} = computeStats(subjects, students);
   const sel = document.getElementById('studentSelect');
@@ -734,9 +754,22 @@ document.getElementById('btnPrintClass').addEventListener('click', ()=>{
   setPageSize('landscape');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
   document.getElementById('panel-view').classList.add('print-active');
+  document.getElementById('viewAnalysisToolbar').style.setProperty('display','none','important');
+  document.getElementById('analysisSheetHolder').style.display='none';
   document.getElementById('viewIndivToolbar').style.setProperty('display','none','important');
   document.getElementById('individualSheetHolder').style.display='none';
   window.print();
+  document.getElementById('analysisSheetHolder').style.display='';
+  document.getElementById('individualSheetHolder').style.display='';
+});
+document.getElementById('btnPrintAnalysis').addEventListener('click', ()=>{
+  setPageSize('landscape');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-view').classList.add('print-active');
+  document.getElementById('classSheetHolder').style.display='none';
+  document.getElementById('individualSheetHolder').style.display='none';
+  window.print();
+  document.getElementById('classSheetHolder').style.display='';
   document.getElementById('individualSheetHolder').style.display='';
 });
 document.getElementById('btnPrintOne').addEventListener('click', ()=>{
@@ -744,14 +777,22 @@ document.getElementById('btnPrintOne').addEventListener('click', ()=>{
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
   document.getElementById('panel-view').classList.add('print-active');
   document.getElementById('classSheetHolder').style.display='none';
+  document.getElementById('analysisSheetHolder').style.display='none';
   window.print();
   document.getElementById('classSheetHolder').style.display='';
+  document.getElementById('analysisSheetHolder').style.display='';
 });
 document.getElementById('btnPdfClass').addEventListener('click', ()=>{
   const el = document.getElementById('classSheetPrintArea');
   if(!el) return;
   const cls = window._currentViewClass;
   downloadPdf(el, `Class-Marksheet-${(cls.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
+});
+document.getElementById('btnPdfAnalysis').addEventListener('click', ()=>{
+  const el = document.getElementById('analysisPrintArea');
+  if(!el) return;
+  const cls = window._currentViewClass;
+  downloadPdf(el, `Analysis-${(cls.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
 });
 document.getElementById('btnPdfOne').addEventListener('click', ()=>{
   const el = document.getElementById('individualPrintArea');

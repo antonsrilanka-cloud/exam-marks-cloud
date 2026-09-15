@@ -60,7 +60,7 @@ a{color:var(--navy);}
 @media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr;}}
 
 label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
-input[type=text],input[type=number],input[type=email],input[type=password]{
+input[type=text],input[type=number],input[type=email],input[type=password],input[type=date]{
   width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:14.5px;color:var(--ink);background:#fff;
 }
 input:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold);}

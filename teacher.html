@@ -27,7 +27,8 @@
 <div class="tabs no-print">
   <button data-tab="entry" class="active">1 · Marks Entry</button>
   <button data-tab="class">2 · Class Marksheet</button>
-  <button data-tab="individual">3 · Individual Reports</button>
+  <button data-tab="analysis">3 · Analysis Report</button>
+  <button data-tab="individual">4 · Individual Reports</button>
 </div>
 
 <div class="wrap">
@@ -82,6 +83,28 @@
     <div id="classSheetHolder"></div>
   </div>
 
+  <!-- ============ ANALYSIS REPORT ============ -->
+  <div class="panel" id="panel-analysis">
+    <div class="card">
+      <h2>Marks Analysis Ranges</h2>
+      <p class="hint">Set the mark ranges used in the Analysis Report below (e.g. 00-20, 21-40, 41-60, 61-80, 81-100). Add, remove, or change these anytime — this is entirely up to you.</p>
+      <div id="rangeTags"></div>
+      <div class="toolbar" style="margin-top:6px;">
+        <input type="number" id="newRangeMin" placeholder="From" style="max-width:100px;">
+        <input type="number" id="newRangeMax" placeholder="To" style="max-width:100px;">
+        <button class="btn outline" id="btnAddRange">+ Add Range</button>
+      </div>
+    </div>
+    <div class="preview-toolbar no-print">
+      <b>Marks Analysis Report</b>
+      <span class="meta-note">How many students fell into each range, per subject.</span>
+      <span class="spacer"></span>
+      <button class="btn outline" id="btnPrintAnalysis">🖨 Print</button>
+      <button class="btn gold" id="btnPdfAnalysis">⬇ Download PDF</button>
+    </div>
+    <div id="analysisSheetHolder"></div>
+  </div>
+
   <!-- ============ INDIVIDUAL REPORTS ============ -->
   <div class="panel" id="panel-individual">
     <div class="preview-toolbar no-print">
@@ -105,7 +128,7 @@
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { esc, uid, computeStats, renderClassSheetHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
+import { esc, uid, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
 let subjects = [];
@@ -133,7 +156,7 @@ document.getElementById('btnLogout').addEventListener('click', ()=> signOut(auth
 
 function initData(){
   onSnapshot(doc(db,'schools',schoolId), (snap)=>{
-    if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); }
+    if(snap.exists()){ school = snap.data(); renderTopBar(); renderAllViews(); renderAnalysisView(); }
   });
   onSnapshot(doc(db,'classes',classId), (snap)=>{
     if(snap.exists()){
@@ -151,6 +174,8 @@ function initData(){
         renderSubjectTags();
         renderEntryTable();
         renderAllViews();
+        renderRangeTags();
+        renderAnalysisView();
       }
     }
   });
@@ -163,7 +188,9 @@ function isEditingSomething(){
   const noteInput = document.getElementById('teacherNoteInput');
   const subjName = document.getElementById('newSubjectName');
   const subjMax = document.getElementById('newSubjectMax');
-  return (entryBody && entryBody.contains(ae)) || ae===noteInput || ae===subjName || ae===subjMax;
+  const rangeMin = document.getElementById('newRangeMin');
+  const rangeMax = document.getElementById('newRangeMax');
+  return (entryBody && entryBody.contains(ae)) || ae===noteInput || ae===subjName || ae===subjMax || ae===rangeMin || ae===rangeMax;
 }
 
 function renderTopBar(){
@@ -196,6 +223,7 @@ function renderStatusBanner(){
   document.getElementById('btnSubmit').disabled = classData.submitted;
   document.getElementById('btnSubmit').textContent = classData.submitted ? "✓ Already Submitted" : "✓ Submit Completed Marks Sheet";
   document.getElementById('btnAddSubject').disabled = classData.submitted;
+  document.getElementById('btnAddRange').disabled = classData.submitted;
 }
 
 /* ===== SUBJECTS (per class) ===== */
@@ -214,6 +242,7 @@ function renderSubjectTags(){
       (classData.students||[]).forEach(st=>{ if(st.marks) delete st.marks[name]; });
       renderSubjectTags();
       renderEntryTable();
+      renderAnalysisView();
       await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
     });
   });
@@ -231,9 +260,64 @@ document.getElementById('btnAddSubject').addEventListener('click', async ()=>{
   (classData.students||[]).forEach(st=>{ if(!st.marks) st.marks={}; if(!(name in st.marks)) st.marks[name]=""; });
   renderSubjectTags();
   renderEntryTable();
+  renderAnalysisView();
   await updateDoc(doc(db,'classes',classId), {subjects, students: classData.students||[]});
   nameEl.value=""; maxEl.value=100;
 });
+
+/* ===== MARKS ANALYSIS RANGES (per class, teacher-controlled) ===== */
+function renderRangeTags(){
+  const wrap = document.getElementById('rangeTags');
+  const locked = !!classData.submitted;
+  const ranges = classData.markRanges || [];
+  if(ranges.length===0){ wrap.innerHTML = `<span class="meta-note">No ranges added yet — add your first one below.</span>`; return; }
+  wrap.innerHTML = ranges.map((r,i)=>`<span class="subject-tag">${String(r.min).padStart(2,'0')}-${String(r.max).padStart(2,'0')}${locked?'':`<button data-i="${i}" class="rmRange">×</button>`}</span>`).join("");
+  wrap.querySelectorAll('.rmRange').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const i = Number(b.dataset.i);
+      const newRanges = [...(classData.markRanges||[])];
+      newRanges.splice(i,1);
+      classData.markRanges = newRanges;
+      renderRangeTags();
+      renderAnalysisView();
+      await updateDoc(doc(db,'classes',classId), {markRanges: newRanges});
+    });
+  });
+}
+document.getElementById('btnAddRange').addEventListener('click', async ()=>{
+  if(classData.submitted) return;
+  const minEl = document.getElementById('newRangeMin');
+  const maxEl = document.getElementById('newRangeMax');
+  const min = Number(minEl.value);
+  const max = Number(maxEl.value);
+  if(minEl.value==="" || maxEl.value==="" || isNaN(min) || isNaN(max) || max<min){
+    alert("Please enter a valid 'From' and 'To' value (From must not be greater than To).");
+    return;
+  }
+  const newRanges = [...(classData.markRanges||[]), {min, max}];
+  newRanges.sort((a,b)=>a.min-b.min);
+  classData.markRanges = newRanges;
+  renderRangeTags();
+  renderAnalysisView();
+  await updateDoc(doc(db,'classes',classId), {markRanges: newRanges});
+  minEl.value=""; maxEl.value="";
+});
+
+function renderAnalysisView(){
+  const students = classData.students || [];
+  const ranges = classData.markRanges || [];
+  const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
+  const holder = document.getElementById('analysisSheetHolder');
+  if(students.length===0 || subjects.length===0){
+    holder.innerHTML = `<div class="card empty-state"><div class="big">📊</div>Add subjects and students first.</div>`;
+    return;
+  }
+  if(ranges.length===0){
+    holder.innerHTML = `<div class="card empty-state"><div class="big">📊</div>Add at least one mark range above to see the analysis.</div>`;
+    return;
+  }
+  holder.innerHTML = `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, classData.className)}</div>`;
+}
 
 /* ===== TABS ===== */
 document.querySelectorAll('.tabs button').forEach(btn=>{
@@ -243,6 +327,7 @@ document.querySelectorAll('.tabs button').forEach(btn=>{
     btn.classList.add('active');
     document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
     if(btn.dataset.tab==='class' || btn.dataset.tab==='individual') renderAllViews();
+    if(btn.dataset.tab==='analysis') renderAnalysisView();
   });
 });
 
@@ -364,8 +449,6 @@ document.getElementById('btnSubmit').addEventListener('click', async ()=>{
 /* ===== CLASS MARKSHEET + INDIVIDUAL REPORTS (view) ===== */
 function renderAllViews(){
   const students = classData.students || [];
-  // This class carries its own exam title/year (set by the Principal via
-  // "New Exam"), so the header always reflects THIS class's exam.
   const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
   document.getElementById('classSheetHolder').innerHTML = students.length
     ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, classData.className)}</div>`
@@ -421,6 +504,12 @@ document.getElementById('btnPrintOne').addEventListener('click',()=>{
   document.getElementById('panel-individual').classList.add('print-active');
   window.print();
 });
+document.getElementById('btnPrintAnalysis').addEventListener('click',()=>{
+  setPageSize('landscape');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
+  document.getElementById('panel-analysis').classList.add('print-active');
+  window.print();
+});
 document.getElementById('btnPdfClass').addEventListener('click',()=>{
   const el = document.getElementById('classSheetPrintArea');
   if(!el) return alert("Add students first.");
@@ -432,6 +521,11 @@ document.getElementById('btnPdfOne').addEventListener('click',()=>{
   const sel = document.getElementById('studentSelect');
   const name = sel.options[sel.selectedIndex]?.text || 'student';
   downloadPdf(el, `Report-${name.replace(/\s+/g,'_')}.pdf`, 'portrait');
+});
+document.getElementById('btnPdfAnalysis').addEventListener('click',()=>{
+  const el = document.getElementById('analysisPrintArea');
+  if(!el) return alert("Add ranges, subjects, and students first.");
+  downloadPdf(el, `Analysis-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`, 'landscape');
 });
 document.getElementById('btnPdfAll').addEventListener('click',()=>{
   const rows = window._rows, highest = window._highest;

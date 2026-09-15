@@ -43,6 +43,36 @@ export function computeStats(subjects, students){
   return {highest, rows};
 }
 
+// ranges: [{min, max}]  — returns per-subject counts of students whose mark
+// falls in each range, plus a "Total Sat" count per subject.
+export function computeRangeAnalysis(subjects, students, ranges){
+  const rows = (ranges||[]).map(r=>({
+    min: r.min, max: r.max,
+    label: `${String(r.min).padStart(2,'0')}-${String(r.max).padStart(2,'0')}`,
+    counts: {}
+  }));
+  const totals = {};
+  subjects.forEach(s=>{
+    let total = 0;
+    students.forEach(st=>{
+      const v = st.marks ? st.marks[s.name] : undefined;
+      if(v!==null && v!==undefined && v!==""){
+        const num = Number(v);
+        if(!isNaN(num)){
+          total++;
+          rows.forEach(row=>{
+            if(num>=row.min && num<=row.max){
+              row.counts[s.name] = (row.counts[s.name]||0) + 1;
+            }
+          });
+        }
+      }
+    });
+    totals[s.name] = total;
+  });
+  return {rows, totals};
+}
+
 function sheetHeaderHtml(school, extraLine){
   const logo = school.logo ? `<img src="${school.logo}">` : `🏫`;
   return `
@@ -148,6 +178,40 @@ export function individualReportHtml(school, subjects, row, highest, className){
     </div>`;
 }
 
+export function renderAnalysisHtml(school, subjects, students, ranges, className){
+  const {rows, totals} = computeRangeAnalysis(subjects, students, ranges);
+  let thead = `<tr><th style="text-align:left;">Marks Range</th>`;
+  subjects.forEach(s=> thead += `<th>${esc(s.name)}</th>`);
+  thead += `</tr>`;
+
+  let tbody = rows.map(row=>{
+    let r = `<tr><td class="name">${esc(row.label)}</td>`;
+    subjects.forEach(s=>{
+      r += `<td>${String(row.counts[s.name]||0).padStart(2,'0')}</td>`;
+    });
+    r += `</tr>`;
+    return r;
+  }).join("");
+
+  let tfoot = `<tr><td style="text-align:left;">Total Sat</td>`;
+  subjects.forEach(s=> tfoot += `<td>${totals[s.name]||0}</td>`);
+  tfoot += `</tr>`;
+
+  return `
+    <div class="sheet-landscape">
+      ${sheetHeaderHtml(school, className)}
+      <table class="landscape-tbl">
+        <thead>${thead}</thead>
+        <tbody>${tbody || `<tr><td colspan="${1+subjects.length}" style="padding:20px;">No mark ranges set up yet</td></tr>`}</tbody>
+        <tfoot>${tfoot}</tfoot>
+      </table>
+      <div class="sheet-footer">
+        <span>Class: ${esc(className)||""} &nbsp;·&nbsp; Marks Analysis Report &nbsp;·&nbsp; Total Students: ${students.length}</span>
+        <span>Generated: ${new Date().toLocaleDateString()}</span>
+      </div>
+    </div>`;
+}
+
 export function setPageSize(size){
   let styleEl = document.getElementById('page-size-style');
   if(!styleEl){
@@ -155,20 +219,10 @@ export function setPageSize(size){
     styleEl.id = 'page-size-style';
     document.head.appendChild(styleEl);
   }
-  // The report sheets are already built to exact A4 dimensions with their own
-  // internal spacing baked in (see .sheet-portrait / .sheet-landscape). Adding
-  // any extra @page margin here on top of that pushes the content past one
-  // physical page, which is what was causing the page-setup problem.
   styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 0; } body{margin:0;} }`;
 }
 
 export async function downloadPdf(el, filename, orientation){
-  // Capture the precisely-sized report sheet itself (.sheet-portrait /
-  // .sheet-landscape), not the surrounding wrapper div. A plain <div>
-  // wrapper stretches to fill its parent's width, while the sheet inside
-  // it is centered and narrower — capturing the wider wrapper was
-  // including blank space on either side of the sheet, which is what was
-  // throwing off the page dimensions and producing the stray blank page.
   const target = el.querySelector('.sheet-portrait, .sheet-landscape') || el;
   const pageWidthMm = orientation === 'landscape' ? 297 : 210;
   const canvas = await window.html2canvas(target, { scale:2, useCORS:true });
