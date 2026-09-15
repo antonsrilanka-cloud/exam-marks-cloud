@@ -278,7 +278,7 @@ function renderAnalysisView(){
     holder.innerHTML = `<div class="card empty-state"><div class="big">📊</div>Add at least one mark range above to see the analysis.</div>`;
     return;
   }
-  holder.innerHTML = `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, classData.className)}</div>`;
+  holder.innerHTML = `<div id="analysisPrintArea">${renderAnalysisHtml(classSchool, subjects, students, ranges, classData.className, classData.teacherName)}</div>`;
 }
 
 /* ===== TABS ===== */
@@ -413,7 +413,7 @@ function renderAllViews(){
   const students = classData.students || [];
   const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
   document.getElementById('classSheetHolder').innerHTML = students.length
-    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, classData.className)}</div>`
+    ? `<div id="classSheetPrintArea">${renderClassSheetHtml(classSchool, subjects, students, classData.className, classData.teacherName)}</div>`
     : `<div class="card empty-state"><div class="big">📋</div>Add students and marks first.</div>`;
 
   const noteWrap = document.getElementById('noteEditorWrap');

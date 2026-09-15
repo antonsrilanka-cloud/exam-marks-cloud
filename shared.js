@@ -100,7 +100,7 @@ export function prepareLandscapePrintHeader(){
   }
 }
 
-export function renderClassSheetHtml(school, subjects, students, className){
+export function renderClassSheetHtml(school, subjects, students, className, teacherName){
   const {highest, rows} = computeStats(subjects, students);
   const colspan = 3 + subjects.length + 3; // #, Name, Adm.No + subjects + Total, Average, Rank
   let columnRow = `<tr><th class="sn">#</th><th style="text-align:left;">Student Name</th><th>Adm.No</th>`;
@@ -134,7 +134,7 @@ export function renderClassSheetHtml(school, subjects, students, className){
         <span>Generated: ${new Date().toLocaleDateString()}</span>
       </div>
       <div class="sig-line">
-        <div>Class Teacher's Signature</div>
+        <div>Class Teacher's Signature${teacherName? "<br><span style='font-size:10px;'>"+esc(teacherName)+"</span>":""}</div>
         <div>Principal's Signature${school.principal? "<br><span style='font-size:10px;'>"+esc(school.principal)+"</span>":""}</div>
       </div>
     </div>`;
@@ -192,7 +192,7 @@ export function individualReportHtml(school, subjects, row, highest, className){
     </div>`;
 }
 
-export function renderAnalysisHtml(school, subjects, students, ranges, className){
+export function renderAnalysisHtml(school, subjects, students, ranges, className, teacherName){
   const {rows, totals} = computeRangeAnalysis(subjects, students, ranges);
   const colspan = 1 + subjects.length;
   let columnRow = `<tr><th style="text-align:left;">Marks Range</th>`;
@@ -223,6 +223,10 @@ export function renderAnalysisHtml(school, subjects, students, ranges, className
       <div class="sheet-footer">
         <span>Class: ${esc(className)||""} &nbsp;·&nbsp; Marks Analysis Report &nbsp;·&nbsp; Total Students: ${students.length}</span>
         <span>Generated: ${new Date().toLocaleDateString()}</span>
+      </div>
+      <div class="sig-line">
+        <div>Class Teacher's Signature${teacherName? "<br><span style='font-size:10px;'>"+esc(teacherName)+"</span>":""}</div>
+        <div>Principal's Signature${school.principal? "<br><span style='font-size:10px;'>"+esc(school.principal)+"</span>":""}</div>
       </div>
     </div>`;
 }
