@@ -264,3 +264,27 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
 .empty-state .big{font-size:38px;margin-bottom:8px;}
 footer.app-footer{text-align:center;color:var(--ink-soft);font-size:12px;padding:20px 0 40px;}
 .loading-block{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+
+/* A temporary container used only while printing a large class marksheet
+   (see renderPagedClassSheetForPrint in shared.js) — invisible the rest
+   of the time, since the normal on-screen view and PDF download use the
+   single continuous sheet instead. */
+.print-only{display:none;}
+@media print{
+  .print-only{display:block !important;}
+  .print-page-break{page-break-after:always;}
+
+  /* Each page built by renderPagedClassSheetForPrint already has its OWN
+     complete, normal-flow header — it must NOT also become the
+     fixed/repeating kind (that rule exists further up for the
+     single-block Analysis Report), or multiple chunks' headers would
+     conflict with each other. The spacer row is likewise unnecessary
+     here, since there's nothing to clear space for. */
+  .print-only .sheet-header{
+    position:static !important;
+    padding:0 !important;
+  }
+  .print-only table.landscape-tbl thead tr.print-clear-row{
+    display:none !important;
+  }
+}

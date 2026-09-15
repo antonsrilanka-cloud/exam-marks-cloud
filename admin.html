@@ -169,7 +169,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, setDoc, collection, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
-import { esc, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, downloadCombinedLandscapePdf, prepareLandscapePrintHeader } from "./shared.js";
+import { esc, computeStats, renderClassSheetHtml, renderPagedClassSheetForPrint, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, downloadCombinedLandscapePdf, prepareLandscapePrintHeader } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
 let classes = []; // [{id, schoolId, className, teacherUid, teacherEmail, teacherName, students, subjects, markRanges, submitted, submittedAt, editRequested, examTitle, examYear}]
@@ -807,22 +807,25 @@ document.getElementById('btnReopen').addEventListener('click', async ()=>{
 });
 
 document.getElementById('btnPrintClass').addEventListener('click', ()=>{
+  const cls = window._currentViewClass;
+  if(!cls) return;
+  const classSchool = window._currentViewSchool || school;
+  const subjects = window._currentViewSubjects || [];
+  const students = cls.students || [];
+  if(students.length===0) return;
+
+  let printHtml = renderPagedClassSheetForPrint(classSchool, subjects, students, cls.className, cls.teacherName);
+  const analysisEl = document.getElementById('analysisPrintArea');
+  if(analysisEl){
+    printHtml += '<div class="print-page-break"></div>' + analysisEl.innerHTML;
+  }
+
+  const container = document.getElementById('printOnlyContainer');
+  container.innerHTML = printHtml;
   setPageSize('landscape');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
-  document.getElementById('panel-view').classList.add('print-active');
-  document.getElementById('viewIndivToolbar').style.setProperty('display','none','important');
-  document.getElementById('individualSheetHolder').style.display='none';
-  const hasAnalysis = !!document.getElementById('analysisPrintArea');
-  if(hasAnalysis){
-    document.body.classList.add('combined-print');
-  } else {
-    document.getElementById('analysisSheetHolder').style.display='none';
-  }
-  prepareLandscapePrintHeader();
   window.print();
-  document.getElementById('analysisSheetHolder').style.display='';
-  document.getElementById('individualSheetHolder').style.display='';
-  document.body.classList.remove('combined-print');
+  container.innerHTML = '';
 });
 document.getElementById('btnPrintAnalysis').addEventListener('click', ()=>{
   setPageSize('landscape');
@@ -897,5 +900,6 @@ document.getElementById('btnPdfAll').addEventListener('click', ()=>{
   window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
 });
 </script>
+<div class="print-only" id="printOnlyContainer"></div>
 </body>
 </html>

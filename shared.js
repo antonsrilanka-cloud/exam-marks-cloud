@@ -143,6 +143,75 @@ export function renderClassSheetHtml(school, subjects, students, className, teac
     </div>`;
 }
 
+// Used specifically for PRINTING a class marksheet — builds each printed
+// page as its OWN complete, independent block (full header, full column
+// names, its own slice of students), joined with explicit page breaks.
+// This is deliberately simpler and more reliable than trying to make a
+// single long table's header "repeat" across pages: every attempt at that
+// (position:fixed, a merged <thead> row, a spacer row) ran into some
+// browser/print-engine inconsistency that hid rows on later pages. A
+// self-contained block per page has no such repetition to go wrong — it's
+// the same technique already used successfully for "Download All"
+// individual reports. On-screen viewing and "Download PDF" still use the
+// single continuous version above, which was never the part with a bug.
+export function renderPagedClassSheetForPrint(school, subjects, students, className, teacherName, rowsPerPage){
+  const perPage = rowsPerPage || 25;
+  const {highest, rows} = computeStats(subjects, students);
+  const colspan = 3 + subjects.length + 3;
+
+  let columnRow = `<tr><th class="sn">#</th><th style="text-align:left;">Student Name</th><th>Adm.No</th>`;
+  subjects.forEach(s=> columnRow += `<th>${esc(s.name)}</th>`);
+  columnRow += `<th>Total</th><th>Average</th><th>Rank</th></tr>`;
+
+  const chunks = [];
+  for(let i=0;i<rows.length;i+=perPage){ chunks.push(rows.slice(i, i+perPage)); }
+  if(chunks.length===0) chunks.push([]);
+
+  const pages = chunks.map((chunkRows, pageIdx)=>{
+    const isLastPage = pageIdx === chunks.length-1;
+    let tbody = chunkRows.map((r)=>{
+      const idx = rows.indexOf(r);
+      let row = `<tr><td class="sn">${idx+1}</td><td class="name">${esc(r.name)||"—"}</td><td>${esc(r.adm)||"—"}</td>`;
+      subjects.forEach(s=>{
+        const v = r.marks ? r.marks[s.name] : "";
+        row += `<td>${v===""||v===undefined||v===null?"-":v}</td>`;
+      });
+      row += `<td class="total-col">${r.total}</td><td class="avg-col">${r.avg.toFixed(1)}</td><td class="rank-col ${r.rank===1?'rank1':''}">${r.rank}</td></tr>`;
+      return row;
+    }).join("");
+
+    let tfoot = "";
+    let sigLine = "";
+    if(isLastPage){
+      tfoot = `<tfoot><tr><td colspan="3" style="text-align:right;">Highest in Class →</td>`;
+      subjects.forEach(s=> tfoot += `<td>${highest[s.name]===null?"-":highest[s.name]}</td>`);
+      tfoot += `<td colspan="3"></td></tr></tfoot>`;
+      sigLine = `
+        <div class="sig-line">
+          <div>Class Teacher's Signature${teacherName? "<br><span style='font-size:10px;'>"+esc(teacherName)+"</span>":""}</div>
+          <div>Principal's Signature${school.principal? "<br><span style='font-size:10px;'>"+esc(school.principal)+"</span>":""}</div>
+        </div>`;
+    }
+
+    return `
+      <div class="sheet-landscape">
+        ${sheetHeaderHtml(school, className)}
+        <table class="landscape-tbl">
+          <thead>${columnRow}</thead>
+          <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No students yet</td></tr>`}</tbody>
+          ${tfoot}
+        </table>
+        <div class="sheet-footer">
+          <span>Class: ${esc(className)||""} &nbsp;·&nbsp; Total Students: ${students.length}${chunks.length>1?(' · Page '+(pageIdx+1)+' of '+chunks.length):''}</span>
+          <span>Generated: ${new Date().toLocaleDateString()}</span>
+        </div>
+        ${sigLine}
+      </div>`;
+  });
+
+  return pages.join('<div class="print-page-break"></div>');
+}
+
 export function individualReportHtml(school, subjects, row, highest, className){
   const logo = school.logo ? `<img src="${school.logo}">` : `🏫`;
   let tbody = subjects.map(s=>{

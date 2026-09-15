@@ -124,7 +124,7 @@
 import { auth, db } from "./firebase-init.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { esc, uid, computeStats, renderClassSheetHtml, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, downloadCombinedLandscapePdf, prepareLandscapePrintHeader } from "./shared.js";
+import { esc, uid, computeStats, renderClassSheetHtml, renderPagedClassSheetForPrint, renderAnalysisHtml, individualReportHtml, setPageSize, downloadPdf, downloadCombinedLandscapePdf, prepareLandscapePrintHeader } from "./shared.js";
 
 let school = {name:"",addr:"",year:"",exam:"",principal:"",logo:""};
 let subjects = [];
@@ -456,18 +456,22 @@ function renderAllViews(){
 
 /* ===== PRINT / PDF ===== */
 document.getElementById('btnPrintClass').addEventListener('click',()=>{
+  const students = classData.students || [];
+  if(students.length===0) return;
+  const classSchool = {...school, exam: classData.examTitle||'', year: classData.examYear||''};
+
+  let printHtml = renderPagedClassSheetForPrint(classSchool, subjects, students, classData.className, classData.teacherName);
+  const analysisEl = document.getElementById('analysisPrintArea');
+  if(analysisEl){
+    printHtml += '<div class="print-page-break"></div>' + analysisEl.innerHTML;
+  }
+
+  const container = document.getElementById('printOnlyContainer');
+  container.innerHTML = printHtml;
   setPageSize('landscape');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
-  document.getElementById('panel-class').classList.add('print-active');
-  const hasAnalysis = !!document.getElementById('analysisPrintArea');
-  if(hasAnalysis){
-    document.getElementById('panel-analysis').classList.add('print-active');
-    document.body.classList.add('combined-print');
-  }
-  prepareLandscapePrintHeader();
   window.print();
-  document.getElementById('panel-analysis').classList.remove('print-active');
-  document.body.classList.remove('combined-print');
+  container.innerHTML = '';
 });
 document.getElementById('btnPrintOne').addEventListener('click',()=>{
   setPageSize('portrait');
@@ -532,5 +536,6 @@ document.getElementById('btnPdfAll').addEventListener('click',()=>{
   window.html2pdf().set(opt).from(wrapper).save().then(()=> document.body.removeChild(wrapper));
 });
 </script>
+<div class="print-only" id="printOnlyContainer"></div>
 </body>
 </html>
