@@ -73,9 +73,9 @@ export function computeRangeAnalysis(subjects, students, ranges){
   return {rows, totals};
 }
 
-function sheetHeaderHtml(school, extraLine){
+function sheetHeaderRow(school, extraLine, colspan){
   const logo = school.logo ? `<img src="${school.logo}">` : `🏫`;
-  return `
+  return `<tr class="header-row"><td colspan="${colspan}" style="border:none;padding:0;">
     <div class="sheet-header">
       <div class="logo-box">${logo}</div>
       <div class="htext">
@@ -84,14 +84,16 @@ function sheetHeaderHtml(school, extraLine){
         <div class="sexam">${esc(school.exam)||"Term Examination"} ${school.year?("· "+esc(school.year)):""} ${extraLine?("· "+esc(extraLine)):""}</div>
       </div>
       <div class="logo-box rlogo" style="visibility:hidden;">${logo}</div>
-    </div>`;
+    </div>
+  </td></tr>`;
 }
 
 export function renderClassSheetHtml(school, subjects, students, className){
   const {highest, rows} = computeStats(subjects, students);
-  let thead = `<tr><th class="sn">#</th><th style="text-align:left;">Student Name</th><th>Adm.No</th>`;
-  subjects.forEach(s=> thead += `<th>${esc(s.name)}</th>`);
-  thead += `<th>Total</th><th>Average</th><th>Rank</th></tr>`;
+  const colspan = 3 + subjects.length + 3; // #, Name, Adm.No + subjects + Total, Average, Rank
+  let columnRow = `<tr><th class="sn">#</th><th style="text-align:left;">Student Name</th><th>Adm.No</th>`;
+  subjects.forEach(s=> columnRow += `<th>${esc(s.name)}</th>`);
+  columnRow += `<th>Total</th><th>Average</th><th>Rank</th></tr>`;
 
   let tbody = rows.map((r,idx)=>{
     let row = `<tr><td class="sn">${idx+1}</td><td class="name">${esc(r.name)||"—"}</td><td>${esc(r.adm)||"—"}</td>`;
@@ -109,10 +111,12 @@ export function renderClassSheetHtml(school, subjects, students, className){
 
   return `
     <div class="sheet-landscape">
-      ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>${thead}</thead>
-        <tbody>${tbody || `<tr><td colspan="${3+subjects.length+3}" style="padding:20px;">No students yet</td></tr>`}</tbody>
+        <thead>
+          ${sheetHeaderRow(school, className, colspan)}
+          ${columnRow}
+        </thead>
+        <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No students yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
       <div class="sheet-footer">
@@ -180,9 +184,10 @@ export function individualReportHtml(school, subjects, row, highest, className){
 
 export function renderAnalysisHtml(school, subjects, students, ranges, className){
   const {rows, totals} = computeRangeAnalysis(subjects, students, ranges);
-  let thead = `<tr><th style="text-align:left;">Marks Range</th>`;
-  subjects.forEach(s=> thead += `<th>${esc(s.name)}</th>`);
-  thead += `</tr>`;
+  const colspan = 1 + subjects.length;
+  let columnRow = `<tr><th style="text-align:left;">Marks Range</th>`;
+  subjects.forEach(s=> columnRow += `<th>${esc(s.name)}</th>`);
+  columnRow += `</tr>`;
 
   let tbody = rows.map(row=>{
     let r = `<tr><td class="name">${esc(row.label)}</td>`;
@@ -199,10 +204,12 @@ export function renderAnalysisHtml(school, subjects, students, ranges, className
 
   return `
     <div class="sheet-landscape">
-      ${sheetHeaderHtml(school, className)}
       <table class="landscape-tbl">
-        <thead>${thead}</thead>
-        <tbody>${tbody || `<tr><td colspan="${1+subjects.length}" style="padding:20px;">No mark ranges set up yet</td></tr>`}</tbody>
+        <thead>
+          ${sheetHeaderRow(school, className, colspan)}
+          ${columnRow}
+        </thead>
+        <tbody>${tbody || `<tr><td colspan="${colspan}" style="padding:20px;">No mark ranges set up yet</td></tr>`}</tbody>
         <tfoot>${tfoot}</tfoot>
       </table>
       <div class="sheet-footer">

@@ -211,22 +211,20 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
   .panel{display:none !important;}
   .panel.print-active{display:block !important;}
 
-  /* Repeat the school header on every printed page — without this, only
-     the first page shows the school name/logo/class, and any continuation
-     page (e.g. a class with more students than fit on one page) shows a
-     bare table with no context. A fixed-position element is redrawn on
-     every page by the browser's print engine, which is exactly the
-     "repeating header" behaviour we want here. */
-  .sheet-landscape .sheet-header{
-    position:fixed;
-    top:0; left:0; right:0;
-    background:#fff;
-    padding:10mm 12mm 8px 12mm;
-    margin-bottom:0;
-  }
-  .sheet-landscape > table.landscape-tbl{
-    margin-top:34mm;
-  }
+  /* The class marksheet and analysis report now put the school header
+     INSIDE the table's own <thead> (as an extra row above the column
+     names) — see shared.js. Browsers repeat a table's <thead> on every
+     printed page natively and reliably, with no manual height/margin
+     guessing needed, which is what actually fixes the header — the
+     previous position:fixed approach needed an exact pixel offset that
+     was hard to get right without live-testing, and caused rows to be
+     hidden behind the header on continuation pages when the estimate was
+     even slightly off. Individual reports (.sheet-portrait) rarely span
+     more than one page, so they still use the simpler fixed-header
+     approach below. */
+  .sheet-landscape thead{ display: table-header-group; }
+  .sheet-landscape .header-row td{ padding:0 !important; }
+
   .sheet-portrait .p-header{
     position:fixed;
     top:0; left:0; right:0;
