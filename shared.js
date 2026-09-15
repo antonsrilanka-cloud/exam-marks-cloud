@@ -261,23 +261,31 @@ export async function downloadPdf(el, filename, orientation){
 // page is captured and placed independently, this doesn't run into any
 // of the native browser-print pagination issues that landscape sheets can
 // hit when they span multiple physical A4 pages.
-export async function downloadCombinedLandscapePdf(firstEl, secondEl, filename){
+export async function downloadCombinedLandscapePdf(firstEl, secondEl, filename, onProgress){
+  const notify = onProgress || (()=>{});
   const target1 = firstEl.querySelector('.sheet-landscape') || firstEl;
   const target2 = secondEl.querySelector('.sheet-landscape') || secondEl;
   const pageWidthMm = 297;
 
+  notify("Capturing marksheet…");
   const canvas1 = await window.html2canvas(target1, { scale:2, useCORS:true });
   const height1Mm = (canvas1.height / canvas1.width) * pageWidthMm;
 
+  notify("Building page 1…");
   const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, height1Mm], orientation:'landscape' });
   pdf.addImage(canvas1.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, pageWidthMm, height1Mm);
 
+  notify("Capturing analysis report…");
   const canvas2 = await window.html2canvas(target2, { scale:2, useCORS:true });
   const height2Mm = (canvas2.height / canvas2.width) * pageWidthMm;
+
+  notify("Building page 2…");
   pdf.addPage([pageWidthMm, height2Mm], 'landscape');
   pdf.addImage(canvas2.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, pageWidthMm, height2Mm);
 
+  notify("Saving file…");
   pdf.save(filename);
+  notify("Done!");
 }
 

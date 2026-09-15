@@ -79,6 +79,7 @@
       <span class="spacer"></span>
       <button class="btn outline" id="btnPrintClass">🖨 Print</button>
       <button class="btn gold" id="btnPdfClass">⬇ Download PDF</button>
+      <span class="meta-note" id="pdfClassStatusNote"></span>
     </div>
     <div id="classSheetHolder"></div>
   </div>
@@ -487,15 +488,20 @@ document.getElementById('btnPdfClass').addEventListener('click', async ()=>{
   const analysisEl = document.getElementById('analysisPrintArea');
   const filename = `Class-Marksheet-${(classData.className||'class').replace(/\s+/g,'_')}.pdf`;
   const btn = document.getElementById('btnPdfClass');
+  const note = document.getElementById('pdfClassStatusNote');
   const oldText = btn.textContent;
-  btn.disabled = true; btn.textContent = "Preparing PDF…";
+  btn.disabled = true; btn.textContent = "Working…";
   try{
     if(analysisEl){
-      await downloadCombinedLandscapePdf(el, analysisEl, filename);
+      await downloadCombinedLandscapePdf(el, analysisEl, filename, (msg)=>{ note.textContent = msg; });
     } else {
+      note.textContent = "Capturing marksheet…";
       await downloadPdf(el, filename, 'landscape');
+      note.textContent = "Done!";
     }
+    setTimeout(()=>{ note.textContent = ""; }, 3000);
   }catch(err){
+    note.textContent = "";
     alert("Sorry, the PDF could not be created: " + err.message + "\n\nPlease try again, or use Print \u2192 Save as PDF instead.");
   }finally{
     btn.disabled = false; btn.textContent = oldText;
