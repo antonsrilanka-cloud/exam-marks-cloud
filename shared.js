@@ -316,7 +316,22 @@ export function setPageSize(size){
   styleEl.textContent = `@media print { @page { size: A4 ${size}; margin: 0; } body{margin:0;} }`;
 }
 
+// Throws a clear, user-facing error instead of letting a missing library
+// fail silently (a bare "window.html2canvas is not a function" is what a
+// non-technical user sees as "the button does nothing").
+function requirePdfLibs(){
+  if(typeof window.html2canvas !== 'function'){
+    throw new Error("The PDF tool (html2canvas) hasn't loaded yet. Please check your internet connection, reload the page, and try again.");
+  }
+  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if(typeof jsPDFCtor !== 'function'){
+    throw new Error("The PDF tool (jsPDF) hasn't loaded yet. Please check your internet connection, reload the page, and try again.");
+  }
+  return jsPDFCtor;
+}
+
 export async function downloadPdf(el, filename, orientation){
+  const jsPDFCtor = requirePdfLibs();
   const target = el.querySelector('.sheet-portrait, .sheet-landscape') || el;
   const pageWidthMm = orientation === 'landscape' ? 297 : 210;
   const canvas = await window.html2canvas(target, { scale:2, useCORS:true });
@@ -324,7 +339,6 @@ export async function downloadPdf(el, filename, orientation){
   const imgData = canvas.toDataURL('image/jpeg', 0.98);
   const pageHeightMm = (canvas.height / canvas.width) * pageWidthMm;
 
-  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, pageHeightMm], orientation });
   pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
   pdf.save(filename);
@@ -338,6 +352,7 @@ export async function downloadPdf(el, filename, orientation){
 // hit when they span multiple physical A4 pages.
 export async function downloadCombinedLandscapePdf(firstEl, secondEl, filename, onProgress){
   const notify = onProgress || (()=>{});
+  const jsPDFCtor = requirePdfLibs();
   const target1 = firstEl.querySelector('.sheet-landscape') || firstEl;
   const target2 = secondEl.querySelector('.sheet-landscape') || secondEl;
   const pageWidthMm = 297;
@@ -347,7 +362,6 @@ export async function downloadCombinedLandscapePdf(firstEl, secondEl, filename, 
   const height1Mm = (canvas1.height / canvas1.width) * pageWidthMm;
 
   notify("Building page 1…");
-  const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   const pdf = new jsPDFCtor({ unit:'mm', format:[pageWidthMm, height1Mm], orientation:'landscape' });
   pdf.addImage(canvas1.toDataURL('image/jpeg', 0.98), 'JPEG', 0, 0, pageWidthMm, height1Mm);
 
