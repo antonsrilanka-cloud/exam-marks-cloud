@@ -204,6 +204,17 @@ table.report-tbl td.hi-col{background:#fbf6e6;font-weight:700;color:var(--navy-d
 
 /* ===== Print rules ===== */
 @media print{
+  /* Forces background colors/shading to actually print. Without this,
+     if the browser's own print dialog has "Background graphics" turned
+     off (which is the default in several browsers), every colored cell —
+     most importantly the navy header row with WHITE subject-name text —
+     prints with no background fill at all. The text itself is still
+     there, but white-on-white, so the subject names and column headers
+     appear to have "vanished" even though nothing is actually missing.
+     This single rule makes that behavior consistent regardless of the
+     person's own print settings. */
+  *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+
   .appbar,.tabs,.preview-toolbar,.no-print{display:none !important;}
   body{background:#fff;}
   .wrap{padding:0;max-width:none;}
