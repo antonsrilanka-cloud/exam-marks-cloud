@@ -8,6 +8,8 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a5f">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -480,11 +482,22 @@ document.getElementById('btnPrintOne').addEventListener('click',()=>{
   window.print();
 });
 document.getElementById('btnPrintAnalysis').addEventListener('click',()=>{
+  // Routed through the same print-only, self-contained-block technique as
+  // the Class Marksheet, instead of the older position:fixed header +
+  // measured-spacer-row approach. That older approach measured
+  // `.sheet-header` with document.querySelector, which could silently
+  // pick up a HIDDEN header from another (non-active) tab's panel —
+  // height 0 — undersizing the spacer and leaving the subject headers
+  // covered/unclear on the printed page. A self-contained block has no
+  // shared header to mismeasure.
+  const analysisEl = document.getElementById('analysisPrintArea');
+  if(!analysisEl) return;
+  const container = document.getElementById('printOnlyContainer');
+  container.innerHTML = analysisEl.innerHTML;
   setPageSize('landscape');
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('print-active'));
-  document.getElementById('panel-analysis').classList.add('print-active');
-  prepareLandscapePrintHeader();
   window.print();
+  container.innerHTML = '';
 });
 document.getElementById('btnPdfClass').addEventListener('click', async ()=>{
   const el = document.getElementById('classSheetPrintArea');
